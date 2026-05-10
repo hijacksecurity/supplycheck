@@ -8,7 +8,7 @@ Look up any package on **npm**, **PyPI**, **Maven Central**, **Go**, or **NuGet*
 ## Highlights
 
 - **Single-package lookup** with a letter grade and prioritized findings
-- **Lockfile / multi-package scan** — paste a `package.json`, `package-lock.json`, `requirements.txt`, `go.mod`, `pom.xml`, or `.csproj` and scan every dependency in parallel
+- **Lockfile / multi-package scan** — paste a `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `requirements.txt`, `Pipfile`, `Pipfile.lock`, `pyproject.toml`, `go.mod`, `pom.xml`, or `.csproj` and scan every dependency in parallel
 - **Version-aware** — findings are split into "affects current version" and "historical advisories" so the grade reflects current risk, not history
 - **Confirmed-malicious detection** — `MAL-*` IDs from OpenSSF plus keyword-matched malware advisories trigger an explicit "do not install" warning
 - **Cross-ecosystem typosquat detection** — Levenshtein distance vs popular-package baselines, with download-threshold suppression to cut false positives
