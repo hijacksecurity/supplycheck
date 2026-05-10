@@ -1579,7 +1579,7 @@ function renderEcoRow() {
 
 function updateHint() {
   const reg = REGISTRIES[activeEco];
-  hint.innerHTML = `${escapeHtml(reg.docs)} — example: <code>${escapeHtml(reg.placeholder)}</code> · <kbd>Enter</kbd> to analyze · <kbd>/</kbd> focus · <kbd>1</kbd>–<kbd>5</kbd> ecosystem`;
+  hint.innerHTML = `${escapeHtml(reg.docs)} — example: <code>${escapeHtml(reg.placeholder)}</code> · <kbd>Enter</kbd> analyze · <kbd>/</kbd> focus · <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>5</kbd> switch`;
   nameInput.placeholder = reg.placeholder;
 }
 
@@ -1977,19 +1977,21 @@ document.querySelectorAll('.mode-tab').forEach(t => {
 analyzeBtn.addEventListener('click', runSingle);
 nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') runSingle(); });
 
-// Global keyboard shortcuts. Skipped when user is typing in inputs/textareas
-// or when a modifier-laden key combo is in flight (Cmd+R, etc.).
+// Global keyboard shortcuts. Alt+1..5 cycles ecosystems (Alt avoids fighting
+// typing of package names that start with digits — e.g. "1password"). / and
+// Esc only fire when not modifier-laden.
 document.addEventListener('keydown', e => {
   const t = e.target;
   const inEditable = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  if (e.altKey && !e.metaKey && !e.ctrlKey && /^[1-5]$/.test(e.key)) {
+    const ecoKeys = Object.keys(REGISTRIES);
+    const idx = parseInt(e.key, 10) - 1;
+    if (ecoKeys[idx]) { e.preventDefault(); setActiveEco(ecoKeys[idx]); nameInput.focus(); }
+    return;
+  }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === '/' && !inEditable) { e.preventDefault(); nameInput.focus(); nameInput.select(); return; }
   if (e.key === 'Escape' && document.activeElement === nameInput && nameInput.value) { nameInput.value = ''; updateHint(); return; }
-  if (!inEditable && /^[1-5]$/.test(e.key)) {
-    const ecoKeys = Object.keys(REGISTRIES);
-    const idx = parseInt(e.key, 10) - 1;
-    if (ecoKeys[idx]) { setActiveEco(ecoKeys[idx]); nameInput.focus(); }
-  }
 });
 
 // Live ecosystem auto-detect hint
