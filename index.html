@@ -1983,11 +1983,16 @@ nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') runSingle();
 document.addEventListener('keydown', e => {
   const t = e.target;
   const inEditable = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-  if (e.altKey && !e.metaKey && !e.ctrlKey && /^[1-5]$/.test(e.key)) {
-    const ecoKeys = Object.keys(REGISTRIES);
-    const idx = parseInt(e.key, 10) - 1;
-    if (ecoKeys[idx]) { e.preventDefault(); setActiveEco(ecoKeys[idx]); nameInput.focus(); }
-    return;
+  if (e.altKey && !e.metaKey && !e.ctrlKey) {
+    // Use e.code (physical key) instead of e.key — on macOS, Option+1 yields
+    // "¡" in e.key, which would never match. e.code is "Digit1" regardless.
+    const m = /^Digit([1-5])$/.exec(e.code);
+    if (m) {
+      const ecoKeys = Object.keys(REGISTRIES);
+      const idx = parseInt(m[1], 10) - 1;
+      if (ecoKeys[idx]) { e.preventDefault(); setActiveEco(ecoKeys[idx]); nameInput.focus(); }
+      return;
+    }
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === '/' && !inEditable) { e.preventDefault(); nameInput.focus(); nameInput.select(); return; }
