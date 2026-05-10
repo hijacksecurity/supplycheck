@@ -1,0 +1,85 @@
+name: Refresh TOP_PACKAGES (PyPI)
+
+# Pulls hugovk's top-pypi-packages list (top-30-days downloads) and refreshes
+# the inline pypi: array in index.html. Other ecosystems lack a comparable
+# free public source and stay static — curate by hand if they drift.
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'  # Mondays 05:00 UTC
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refresh pypi array
+        id: refresh
+        run: |
+          python3 - <<'PY'
+          import json, re, urllib.request, sys, os
+
+          URL = 'https://hugovk.github.io/top-pypi-packages/top-pypi-packages.min.json'
+          with urllib.request.urlopen(URL, timeout=30) as r:
+              data = json.load(r)
+
+          rows = data.get('rows') or data.get('packages') or []
+          top = []
+          for row in rows[:200]:
+              name = row.get('project') or row.get('package')
+              if name:
+                  top.append(name)
+
+          if len(top) < 50:
+              print(f'::error::Got only {len(top)} packages, refusing to update', file=sys.stderr)
+              sys.exit(1)
+
+          new_arr = ','.join(f"'{p}'" for p in top)
+
+          with open('index.html', 'r', encoding='utf-8') as f:
+              html = f.read()
+
+          # Find `pypi: [...]` inside TOP_PACKAGES and replace its contents.
+          # The array spans one long line; non-greedy match up to the matching ].
+          pattern = re.compile(r"(pypi:\s*\[)[^\]]*(\])", re.S)
+          new_html, n = pattern.subn(lambda m: m.group(1) + new_arr + m.group(2), html, count=1)
+          if n != 1:
+              print('::error::Could not locate pypi: array in index.html', file=sys.stderr)
+              sys.exit(1)
+
+          if new_html == html:
+              print('No changes')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as gh:
+                  gh.write('changed=false\n')
+          else:
+              with open('index.html', 'w', encoding='utf-8') as f:
+                  f.write(new_html)
+              print(f'Refreshed pypi list with {len(top)} packages')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as gh:
+                  gh.write('changed=true\n')
+                  gh.write(f'count={len(top)}\n')
+          PY
+
+      - name: Open PR
+        if: steps.refresh.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'Refresh TOP_PACKAGES.pypi from hugovk top-30-days'
+          title: 'Refresh TOP_PACKAGES.pypi (weekly)'
+          body: |
+            Automated weekly refresh of the PyPI typosquat baseline from
+            [hugovk/top-pypi-packages](https://hugovk.github.io/top-pypi-packages/)
+            (top-30-days downloads). ${{ steps.refresh.outputs.count }} packages.
+
+            Diff is the inline `TOP_PACKAGES.pypi` array in `index.html`. Merge if
+            the changes look reasonable; revert if a popular library got dropped
+            unexpectedly.
+          branch: bot/refresh-top-pypi
+          base: test
+          delete-branch: true
+          labels: automated
