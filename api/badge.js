@@ -199,6 +199,10 @@ export default async function handler(request) {
 
   try {
     const version = await latestVersion(eco, pkg);
+    if (!version) {
+      // Package doesn't resolve in registry → don't grade as A.
+      return svgResponse(makeSvg({ eco, grade: '?', vulnCount: 0 }), 200, 60);
+    }
     const vulns = await osvLookup(eco, pkg, version);
     const grade = gradeFromAdvisories(vulns);
     return svgResponse(makeSvg({ eco, grade, vulnCount: vulns.length }));
