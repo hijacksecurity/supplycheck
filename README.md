@@ -14,6 +14,7 @@ Look up any package on **npm**, **PyPI**, **Maven Central**, **Go**, or **NuGet*
 - **Cross-ecosystem typosquat detection** — Levenshtein distance vs popular-package baselines, with download-threshold suppression to cut false positives
 - **Shareable URL state** — every result has a permalink (`#eco=npm&pkg=lodash`) you can paste into incident threads
 - **Markdown / JSON export** — copy a clean report into Jira, Slack, GitHub PR comments, or audit logs
+- **README badge** — embed a live grade badge in your project's README, fetched fresh from OSV on every render
 - **No backend, no tracking** — every fetch happens in the user's browser. Hosted as a single static HTML file.
 
 ## Try it
@@ -21,6 +22,7 @@ Look up any package on **npm**, **PyPI**, **Maven Central**, **Go**, or **NuGet*
 - **Production:** https://supplycheck.hijacksecurity.com
 - Single package: append `#eco=npm&pkg=lodash` to the URL
 - Lockfile scan: switch to "Lockfile / multi-package scan" tab and paste a manifest
+- README badge: `![supplycheck](https://supplycheck.hijacksecurity.com/api/badge?eco=npm&pkg=lodash)` — supports `eco=npm|pypi|maven|go|nuget`. The result page has a "Copy README badge" button that produces this snippet for any package you look up.
 
 ### Try these
 

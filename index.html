@@ -142,6 +142,10 @@
     .finding-title { color: var(--fg); flex: 1; }
     .finding-toggle { color: var(--fg-faint); font-size: 12px; }
     .applies-badge { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 6px; border: 1px solid var(--fg-faint); color: var(--fg-faint); flex-shrink: 0; white-space: nowrap; }
+    .finding-info { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--fg-faint); color: var(--fg-faint); font-size: 10px; cursor: help; flex-shrink: 0; position: relative; user-select: none; }
+    .finding-info:hover, .finding-info:focus { color: var(--fg); border-color: var(--fg-dim); outline: none; }
+    .finding-info::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: 0; width: 320px; max-width: 70vw; padding: 9px 11px; background: #0d1011; border: 1px solid var(--border-strong); border-left: 2px solid var(--neon-dim); color: var(--fg); font-family: var(--mono); font-size: 11.5px; line-height: 1.5; white-space: normal; pointer-events: none; opacity: 0; transform: translateY(-4px); transition: opacity .12s ease, transform .12s ease; z-index: 10; text-transform: none; letter-spacing: 0; box-shadow: 0 4px 16px rgba(0,0,0,0.5); text-align: left; }
+    .finding-info:hover::after, .finding-info:focus::after { opacity: 1; transform: translateY(0); }
     .applies-badge.applies-current { color: var(--fg-dim); border-color: var(--fg-dim); }
     .applies-badge.applies-malicious { color: var(--critical); border-color: var(--critical); }
     .applies-badge.applies-fixed { color: var(--neon-dim); border-color: var(--neon-dim); }
@@ -1561,6 +1565,9 @@ function renderFinding(f, historical) {
   h += `  <div class="finding-head">`;
   h += `    <span class="sev-chip sev-${f.severity}">${f.severity}</span>`;
   h += `    <span class="finding-title">${escapeHtml(f.title)}</span>`;
+  if (f.why) {
+    h += `    <span class="finding-info" tabindex="0" data-tip="${escapeHtml(f.why)}" aria-label="Why this matters">?</span>`;
+  }
   if (f.appliesBadge) {
     h += `    <span class="applies-badge applies-${f.appliesKind}">${escapeHtml(f.appliesBadge)}</span>`;
   }
@@ -1612,6 +1619,7 @@ function renderResults(pkg, findings, opts = {}) {
     html += `  <button class="action-btn" id="copy-md-btn">Copy as Markdown</button>`;
     html += `  <button class="action-btn" id="copy-share-btn">Copy share link</button>`;
     html += `  <button class="action-btn" id="copy-json-btn">Copy JSON</button>`;
+    html += `  <button class="action-btn" id="copy-badge-btn">Copy README badge</button>`;
     html += `</div>`;
   }
   html += `</div>`;
@@ -1654,6 +1662,15 @@ function renderResults(pkg, findings, opts = {}) {
   if (copyJson) copyJson.addEventListener('click', async () => {
     const ok = await copyToClipboard(JSON.stringify({ pkg: { ...pkg, _raw: undefined }, findings: findings.map(f => ({ ...f, _osv: undefined })) }, null, 2));
     flashCopied(copyJson, ok);
+  });
+  const copyBadge = document.getElementById('copy-badge-btn');
+  if (copyBadge) copyBadge.addEventListener('click', async () => {
+    const origin = window.location.origin;
+    const badgeUrl = `${origin}/api/badge?eco=${encodeURIComponent(pkg.ecosystem)}&pkg=${encodeURIComponent(pkg.name)}`;
+    const linkUrl = `${origin}/#eco=${encodeURIComponent(pkg.ecosystem)}&pkg=${encodeURIComponent(pkg.name)}`;
+    const md = `[![supplycheck](${badgeUrl})](${linkUrl})`;
+    const ok = await copyToClipboard(md);
+    flashCopied(copyBadge, ok);
   });
 
   return null;
