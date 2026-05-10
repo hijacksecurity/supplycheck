@@ -1,0 +1,1672 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>supplycheck — package supply chain risk scorer</title>
+  <meta name="description" content="Cross-ecosystem package supply chain risk scorer. A free utility from Hijack Security." />
+  <meta property="og:title" content="supplycheck — package supply chain risk scorer" />
+  <meta property="og:description" content="Free utility for triaging supply chain risk on any npm, PyPI, Maven, Go, or NuGet package. Built by Hijack Security." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#07090a" />
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'&gt;&lt;rect width='32' height='32' fill='%23070a0a'/&gt;&lt;text y='23' x='3' font-family='monospace' font-size='18' font-weight='bold' fill='%235af78e'&gt;sc&lt;/text&gt;&lt;/svg&gt;" />
+  <style>
+    :root {
+      --bg: #07090a;
+      --bg-elev: #0d1113;
+      --bg-elev-2: #131a1c;
+      --border: #1f2a2c;
+      --border-strong: #2a3a3d;
+      --fg: #d6e4d8;
+      --fg-dim: #7d9088;
+      --fg-faint: #4a5a55;
+      --neon: #5af78e;
+      --neon-dim: #2fae5e;
+      --critical: #ff4747;
+      --high: #ff9d3a;
+      --medium: #f5d442;
+      --low: #5fd1f4;
+      --info: #9da9aa;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 14px; line-height: 1.5; }
+    a { color: var(--neon); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+    header.title { display: flex; align-items: baseline; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 24px; flex-wrap: wrap; }
+    header.title h1 { margin: 0; font-size: 22px; color: var(--neon); letter-spacing: 0.5px; }
+    header.title .tag { color: var(--fg-dim); font-size: 12px; }
+    header.title .tag::before { content: "// "; color: var(--fg-faint); }
+    header.title .brand { margin-left: auto; color: var(--fg-faint); font-size: 11px; letter-spacing: 0.5px; }
+
+    .mode-tabs { display: flex; gap: 0; margin-bottom: -1px; position: relative; z-index: 2; }
+    .mode-tab { background: transparent; border: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--fg-dim); padding: 8px 16px; cursor: pointer; font-family: var(--mono); font-size: 13px; }
+    .mode-tab.active { color: var(--neon); border-color: var(--border); background: var(--bg-elev); border-bottom-color: var(--bg-elev); }
+    .mode-tab:not(.active):hover { color: var(--fg); }
+
+    .controls { background: var(--bg-elev); border: 1px solid var(--border); padding: 16px; margin-bottom: 20px; }
+    .eco-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+    .eco-btn { background: transparent; border: 1px solid var(--border-strong); color: var(--fg-dim); padding: 6px 12px; cursor: pointer; font-family: var(--mono); font-size: 13px; }
+    .eco-btn:hover { color: var(--fg); border-color: var(--neon-dim); }
+    .eco-btn.active { color: var(--neon); border-color: var(--neon); background: rgba(90, 247, 142, 0.06); }
+    .eco-suggest { color: var(--medium); font-size: 12px; margin-left: auto; cursor: pointer; }
+    .eco-suggest:hover { text-decoration: underline; }
+    .input-row { display: flex; gap: 8px; }
+    .name-input { flex: 1; background: var(--bg); border: 1px solid var(--border-strong); color: var(--fg); padding: 10px 12px; font-family: var(--mono); font-size: 14px; }
+    .name-input:focus { outline: none; border-color: var(--neon); }
+    .lockfile-area { width: 100%; min-height: 140px; background: var(--bg); border: 1px solid var(--border-strong); color: var(--fg); padding: 10px 12px; font-family: var(--mono); font-size: 13px; resize: vertical; }
+    .lockfile-area:focus { outline: none; border-color: var(--neon); }
+    .lockfile-detect { color: var(--fg-faint); font-size: 12px; margin-top: 6px; }
+    .lockfile-detect strong { color: var(--neon); }
+    .analyze-btn { background: var(--neon); border: none; color: #021008; padding: 10px 20px; font-family: var(--mono); font-size: 14px; font-weight: bold; cursor: pointer; letter-spacing: 0.5px; }
+    .analyze-btn:hover { background: #7afca5; }
+    .analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hint { color: var(--fg-faint); font-size: 12px; margin-top: 8px; }
+    .hint kbd { background: var(--bg); border: 1px solid var(--border-strong); padding: 1px 5px; border-radius: 2px; font-size: 11px; color: var(--fg-dim); }
+
+    .recent-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .recent-label { color: var(--fg-faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+    .recent-chip { background: transparent; border: 1px solid var(--border-strong); color: var(--fg-dim); padding: 3px 8px; font-family: var(--mono); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .recent-chip:hover { color: var(--fg); border-color: var(--neon-dim); }
+    .recent-chip .recent-grade { font-weight: bold; font-size: 10px; padding: 0 2px; }
+    .recent-clear { color: var(--fg-faint); font-size: 11px; cursor: pointer; margin-left: 4px; }
+    .recent-clear:hover { color: var(--critical); }
+
+    .status { padding: 12px 16px; border: 1px solid var(--border); margin-bottom: 16px; color: var(--fg-dim); }
+    .status.error { color: var(--critical); border-color: var(--critical); background: rgba(255, 71, 71, 0.05); }
+    .status .progress-bar { display: inline-block; width: 200px; height: 6px; background: var(--bg); border: 1px solid var(--border-strong); margin-left: 10px; vertical-align: middle; }
+    .status .progress-fill { height: 100%; background: var(--neon); transition: width 0.2s; }
+
+    .pkg-header { background: var(--bg-elev); border: 1px solid var(--border); padding: 18px; margin-bottom: 16px; }
+    .pkg-header.malicious { border-color: var(--critical); background: rgba(255, 71, 71, 0.04); }
+    .pkg-header .row1 { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .pkg-header .name { font-size: 18px; color: var(--neon); }
+    .pkg-header.malicious .name { color: var(--critical); }
+    .pkg-header .version { color: var(--fg-dim); font-size: 14px; }
+    .pkg-header .grade { margin-left: auto; padding: 4px 14px; font-size: 22px; font-weight: bold; border: 2px solid; }
+    .grade-A { color: var(--neon); border-color: var(--neon); }
+    .grade-B { color: #c8f74a; border-color: #c8f74a; }
+    .grade-C { color: var(--medium); border-color: var(--medium); }
+    .grade-D { color: var(--high); border-color: var(--high); }
+    .grade-F { color: var(--critical); border-color: var(--critical); background: rgba(255, 71, 71, 0.08); }
+    .pkg-header .desc { color: var(--fg-dim); margin-top: 8px; font-size: 13px; }
+    .malicious-banner { background: var(--critical); color: #170303; padding: 8px 12px; margin: 12px 0 0; font-weight: bold; letter-spacing: 0.5px; }
+    .pkg-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .stat .label { color: var(--fg-faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat .value { color: var(--fg); font-size: 13px; margin-top: 2px; word-break: break-word; }
+    .pkg-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+    .action-btn { background: transparent; border: 1px solid var(--border-strong); color: var(--fg-dim); padding: 5px 10px; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+    .action-btn:hover { color: var(--fg); border-color: var(--neon-dim); }
+    .action-btn.copied { color: var(--neon); border-color: var(--neon); }
+
+    .findings-section h2 { color: var(--neon-dim); font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 10px; }
+    .finding { background: var(--bg-elev); border: 1px solid var(--border); border-left-width: 3px; padding: 12px 14px; margin-bottom: 8px; }
+    .finding-head { cursor: pointer; padding: 0; }
+    .finding:hover .finding-head { background: var(--bg-elev-2); }
+    .finding.sev-critical { border-left-color: var(--critical); background: rgba(255, 71, 71, 0.04); }
+    .finding.sev-high { border-left-color: var(--high); }
+    .finding.sev-medium { border-left-color: var(--medium); }
+    .finding.sev-low { border-left-color: var(--low); }
+    .finding.sev-info { border-left-color: var(--info); }
+    .finding-head { display: flex; align-items: baseline; gap: 10px; padding: 0; }
+    .finding-body a { color: var(--neon); }
+    .finding-body pre a { color: var(--neon); }
+    .sev-chip { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 2px 6px; border: 1px solid; flex-shrink: 0; }
+    .sev-chip.sev-critical { color: var(--critical); border-color: var(--critical); }
+    .sev-chip.sev-high { color: var(--high); border-color: var(--high); }
+    .sev-chip.sev-medium { color: var(--medium); border-color: var(--medium); }
+    .sev-chip.sev-low { color: var(--low); border-color: var(--low); }
+    .sev-chip.sev-info { color: var(--info); border-color: var(--info); }
+    .finding-title { color: var(--fg); flex: 1; }
+    .finding-toggle { color: var(--fg-faint); font-size: 12px; }
+    .applies-badge { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 6px; border: 1px solid var(--fg-faint); color: var(--fg-faint); flex-shrink: 0; white-space: nowrap; }
+    .applies-badge.applies-current { color: var(--fg-dim); border-color: var(--fg-dim); }
+    .applies-badge.applies-malicious { color: var(--critical); border-color: var(--critical); }
+    .applies-badge.applies-fixed { color: var(--neon-dim); border-color: var(--neon-dim); }
+    .applies-badge.applies-historical { color: var(--fg-faint); border-color: var(--fg-faint); border-style: dashed; }
+    .finding.historical { opacity: 0.65; }
+    .finding.historical:hover { opacity: 1; }
+    .findings-section.historical h2 { color: var(--fg-faint); }
+    .finding-body { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--fg-dim); font-size: 13px; }
+    .finding.open .finding-body { display: block; }
+    .finding-body .label { color: var(--neon-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 8px; }
+    .finding-body .label:first-child { margin-top: 0; }
+    .finding-body pre { background: var(--bg); border: 1px solid var(--border); padding: 8px; margin: 4px 0 0; overflow-x: auto; font-size: 12px; color: var(--fg); white-space: pre-wrap; word-break: break-word; }
+
+    .scan-summary { background: var(--bg-elev); border: 1px solid var(--border); padding: 16px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+    .scan-summary .stat .value { font-size: 18px; }
+    .scan-table { width: 100%; border-collapse: collapse; background: var(--bg-elev); border: 1px solid var(--border); }
+    .scan-table th { color: var(--neon-dim); text-align: left; font-weight: normal; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; border-bottom: 1px solid var(--border-strong); }
+    .scan-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .scan-table tr:hover td { background: var(--bg-elev-2); }
+    .scan-table .grade-pill { display: inline-block; padding: 1px 7px; border: 1px solid; font-weight: bold; font-size: 11px; }
+    .scan-table .pkg-cell { color: var(--fg); word-break: break-all; }
+    .scan-table .ver-cell { color: var(--fg-dim); }
+    .scan-table .eco-cell { color: var(--fg-faint); font-size: 11px; text-transform: uppercase; }
+    .scan-table .issues-cell { color: var(--fg-dim); font-size: 12px; }
+    .scan-table .row-action { cursor: pointer; }
+    .scan-table .scan-row.expanded td { border-bottom-color: var(--border-strong); background: var(--bg-elev-2); }
+    .scan-detail-row td { background: var(--bg) !important; padding: 0 !important; }
+    .scan-detail-row .scan-detail-inner { padding: 16px 24px; border-left: 3px solid var(--neon-dim); }
+    .scan-error { color: var(--critical); }
+
+    .empty { color: var(--fg-faint); padding: 40px 20px; text-align: center; border: 1px dashed var(--border); }
+    .empty p { margin: 8px 0; }
+    .empty code { color: var(--fg-dim); }
+
+    .footer { color: var(--fg-faint); font-size: 11px; margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .footer a { color: var(--fg-dim); }
+
+    @media (max-width: 600px) {
+      .wrap { padding: 20px 14px 40px; }
+      .pkg-header .grade { margin-left: 0; }
+      .scan-table { font-size: 12px; }
+      .scan-table th:nth-child(3), .scan-table td:nth-child(3) { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="title">
+    <h1>supplycheck</h1>
+    <span class="tag">cross-ecosystem package supply chain risk scorer</span>
+    <span class="brand">a free utility from Hijack Security</span>
+  </header>
+
+  <div class="mode-tabs" id="mode-tabs">
+    <button class="mode-tab active" data-mode="single">Single package</button>
+    <button class="mode-tab" data-mode="lockfile">Lockfile / multi-package scan</button>
+  </div>
+
+  <!-- single-package mode -->
+  <div class="controls" id="single-controls">
+    <div class="eco-row" id="eco-row"></div>
+    <div class="input-row">
+      <input class="name-input" id="name-input" placeholder="package name" autocomplete="off" />
+      <button class="analyze-btn" id="analyze-btn">Analyze</button>
+    </div>
+    <div class="hint" id="hint"></div>
+    <div class="recent-row" id="recent-row" style="display:none"></div>
+  </div>
+
+  <!-- lockfile mode -->
+  <div class="controls" id="lockfile-controls" style="display:none">
+    <textarea class="lockfile-area" id="lockfile-area" placeholder="Paste a package.json, package-lock.json, requirements.txt, go.mod, pom.xml &lt;dependencies&gt;, or .csproj &lt;PackageReference&gt; block here…"></textarea>
+    <div class="lockfile-detect" id="lockfile-detect">No format detected yet — paste a manifest above.</div>
+    <div class="input-row" style="margin-top:10px">
+      <button class="analyze-btn" id="scan-btn" disabled>Scan dependencies</button>
+    </div>
+    <div class="hint">Runs registry + OSV checks for every dependency in parallel (5 at a time). Click any row to drill in.</div>
+  </div>
+
+  <div id="status"></div>
+  <div id="results">
+    <div class="empty">
+      <p>Pick an ecosystem and enter a package name, or paste a lockfile.</p>
+      <p>Try: <code>lodash</code> (npm), <code>requests</code> (pypi), <code>com.google.guava:guava</code> (maven), <code>github.com/gin-gonic/gin</code> (go), <code>Newtonsoft.Json</code> (nuget)</p>
+      <p>Try a typosquat: <code>loadsh</code>, <code>reqeusts</code></p>
+      <p>Try a confirmed-malicious: <code>event-stream</code>, <code>ua-parser-js</code> (npm)</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    Live registry data + <a href="https://osv.dev" target="_blank" rel="noopener">OSV.dev</a> advisories. No backend, no tracking.
+    Findings are heuristic — high severity ≠ malicious, info ≠ safe. <code>MAL-*</code> advisories and detected malware keywords are ground-truth confirmed-malicious.
+    Built by <a href="https://www.hijacksecurity.com/" target="_blank" rel="noopener">Hijack Security</a>.
+  </div>
+</div>
+
+<script>
+// ============================================================
+// utilities
+// ============================================================
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = Array.from({length: m + 1}, () => new Array(n + 1));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function normalizeRepoUrl(url) {
+  if (!url) return null;
+  url = String(url).replace(/^git\+/, '').replace(/\.git$/, '').replace(/^git:\/\//, 'https://').replace(/^ssh:\/\/git@/, 'https://');
+  return url;
+}
+
+function daysBetween(iso, now = Date.now()) {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  return (now - t) / 86400000;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toISOString().slice(0, 10);
+}
+
+function fmtAge(days) {
+  if (days == null) return '—';
+  if (days < 60) return `${Math.round(days)}d`;
+  if (days < 730) return `${Math.round(days / 30)}mo`;
+  return `${(days / 365).toFixed(1)}y`;
+}
+
+function fmtNum(n) {
+  if (n == null) return '—';
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return String(n);
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function linkify(escapedText) {
+  return String(escapedText).replace(/https?:\/\/[^\s<>"'`)]+/g, m => {
+    const trail = m.match(/[.,;:!?]+$/);
+    const url = trail ? m.slice(0, -trail[0].length) : m;
+    const tail = trail ? trail[0] : '';
+    return `<a href="${url}" target="_blank" rel="noopener">${url}</a>${tail}`;
+  });
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); document.body.removeChild(ta); return true; }
+    catch (_) { document.body.removeChild(ta); return false; }
+  }
+}
+
+// ============================================================
+// typosquat baseline — expanded to cover commonly-confused short names
+// ============================================================
+const TOP_PACKAGES = {
+  npm: ['react','react-dom','lodash','axios','express','chalk','debug','request','typescript','webpack','dotenv','commander','vue','underscore','redux','react-router','react-router-dom','async','bluebird','body-parser','cookie-parser','cors','colors','color','color-name','color-convert','fs-extra','jquery','jsonwebtoken','mongoose','morgan','mysql','nodemon','passport','pg','semver','socket.io','ws','esbuild','vite','prisma','glob','prettier','eslint','jest','mocha','moment','next','rxjs','yargs','tslib','minimist','classnames','zod','tailwindcss','ms','ansi-styles','supports-color','strip-ansi','wrap-ansi','cliui','escape-string-regexp','locate-path','find-up','path-exists','path-key','cross-spawn','which','isexe','ansi-regex','simple-swizzle','is-arrayish','has-flag','signal-exit','onetime','mimic-fn','restore-cursor','cli-cursor','log-symbols','figures','indent-string','strip-final-newline','npm-run-path','shebang-command','shebang-regex','safe-buffer','readable-stream','util-deprecate','core-util-is','process-nextick-args','isarray','string_decoder','inherits','asap','iconv-lite','safer-buffer','pump','end-of-stream','once','wrappy','readdirp','anymatch','binary-extensions','normalize-path','picomatch','to-regex-range','is-number','fill-range','is-extglob','is-glob','glob-parent','braces','chokidar','rimraf','mkdirp','core-js','regenerator-runtime','node-fetch','cheerio','puppeteer','playwright','sharp','bcrypt','bcryptjs','cookie','helmet','nodemailer','pm2','swc','terser','kleur','pino','winston','bunyan','log4js','loglevel','axios-retry','undici','got','superagent','form-data','qs','tough-cookie','formidable','multer','express-session','csurf','express-validator','joi','yup','ajv','chokidar','klaw','del','rimraf','globby','fast-glob','tiny-glob','minipass','tar','tar-fs','tar-stream','through2','duplexify','readable-stream','stream-shift','split2','pumpify','split','event-stream','jsonstream','ndjson','msgpack','msgpack-lite','protobufjs','proto-list','semver-diff','update-notifier','configstore','env-paths','xdg-basedir','ci-info','is-ci','is-docker','is-wsl','os-name','windows-release','macos-release','sharp','jimp','image-size','file-type','mime','mime-types','mime-db','accepts','content-type','content-disposition','etag','fresh','range-parser','statuses','vary','negotiator','cache-control','helmet-csp','express-rate-limit','rate-limiter-flexible','bull','bee-queue','agenda','node-cron','cron','later','momentum','luxon','date-fns','dayjs','timeago.js','pretty-ms','parse-ms','prom-client','statsd-client','newrelic','elastic-apm-node','axios','node-fetch','request-promise','axios','isomorphic-fetch','cross-fetch','make-fetch-happen'],
+  pypi: ['requests','urllib3','numpy','pandas','scipy','matplotlib','django','flask','sqlalchemy','pytest','pillow','beautifulsoup4','boto3','botocore','s3transfer','awscli','certifi','charset-normalizer','click','cryptography','fastapi','idna','jinja2','lxml','markdown','openpyxl','packaging','pip','pydantic','pydantic-core','pyjwt','python-dateutil','pyyaml','six','tornado','tqdm','typing-extensions','werkzeug','wheel','setuptools','attrs','aiohttp','redis','scikit-learn','tensorflow','torch','transformers','anthropic','openai','httpx','httpcore','h11','anyio','sniffio','starlette','uvicorn','gunicorn','rich','typer','colorama','dask','polars','numba','sympy','seaborn','plotly','bokeh','streamlit','dash','gradio','langchain','langchain-core','langchain-community','chromadb','tiktoken','sentencepiece','tokenizers','huggingface-hub','datasets','accelerate','peft','safetensors','python-dotenv','pyarrow','protobuf','grpcio','google-auth','google-cloud-storage','google-cloud-bigquery','azure-identity','azure-storage-blob','msal','cffi','pycparser','psycopg2','psycopg2-binary','psycopg','pymongo','elasticsearch','kafka-python','confluent-kafka','celery','kombu','vine','amqp','flower','pika','aio-pika','rq','dramatiq','jupyter','ipython','ipykernel','jupyter-client','jupyter-core','notebook','jupyterlab','nbformat','nbconvert','pyzmq','tornado','traitlets','prompt-toolkit','wcwidth','executing','asttokens','stack-data','pure-eval','poetry','virtualenv','pipenv','pdm','hatch','build','twine','pip-tools','black','flake8','isort','mypy','ruff','pylint','autopep8','yapf','bandit','safety','pre-commit','tox','nox','coverage','pytest-cov','pytest-asyncio','pytest-mock','factory-boy','faker','hypothesis','responses','requests-mock','httpretty','mock','freezegun','time-machine'],
+  maven: ['com.google.guava:guava','org.apache.commons:commons-lang3','com.fasterxml.jackson.core:jackson-databind','com.fasterxml.jackson.core:jackson-core','com.fasterxml.jackson.core:jackson-annotations','org.springframework:spring-core','org.springframework:spring-context','org.springframework:spring-beans','org.springframework:spring-web','org.springframework:spring-webmvc','org.springframework:spring-tx','org.springframework:spring-jdbc','org.springframework:spring-orm','org.springframework.boot:spring-boot-starter','org.springframework.boot:spring-boot-starter-web','org.springframework.boot:spring-boot-starter-data-jpa','org.springframework.boot:spring-boot-starter-security','org.springframework.boot:spring-boot-starter-test','org.springframework.security:spring-security-core','org.springframework.security:spring-security-web','org.springframework.security:spring-security-config','org.junit.jupiter:junit-jupiter','org.junit.jupiter:junit-jupiter-api','org.junit.jupiter:junit-jupiter-engine','junit:junit','org.slf4j:slf4j-api','org.slf4j:slf4j-simple','ch.qos.logback:logback-classic','ch.qos.logback:logback-core','com.google.protobuf:protobuf-java','com.google.protobuf:protobuf-java-util','org.apache.httpcomponents:httpclient','org.apache.httpcomponents:httpcore','org.apache.httpcomponents.client5:httpclient5','org.mockito:mockito-core','org.mockito:mockito-junit-jupiter','org.hibernate:hibernate-core','org.hibernate:hibernate-validator','com.squareup.okhttp3:okhttp','com.squareup.okhttp3:logging-interceptor','com.squareup.retrofit2:retrofit','com.squareup.retrofit2:converter-gson','io.netty:netty-all','io.netty:netty-handler','io.projectreactor:reactor-core','io.projectreactor.netty:reactor-netty','com.google.code.gson:gson','org.apache.kafka:kafka-clients','org.apache.kafka:kafka-streams','org.assertj:assertj-core','org.apache.logging.log4j:log4j-core','org.apache.logging.log4j:log4j-api','commons-io:commons-io','commons-codec:commons-codec','com.h2database:h2','org.postgresql:postgresql','mysql:mysql-connector-java','com.mysql:mysql-connector-j','com.zaxxer:HikariCP','io.micrometer:micrometer-core','io.micrometer:micrometer-registry-prometheus','io.swagger.core.v3:swagger-annotations','org.springdoc:springdoc-openapi-ui','com.auth0:java-jwt','io.jsonwebtoken:jjwt','io.jsonwebtoken:jjwt-api','io.jsonwebtoken:jjwt-impl','io.jsonwebtoken:jjwt-jackson','com.google.code.findbugs:jsr305','org.projectlombok:lombok','org.mapstruct:mapstruct','org.flywaydb:flyway-core','org.liquibase:liquibase-core','com.amazonaws:aws-java-sdk-core','com.amazonaws:aws-java-sdk-s3','software.amazon.awssdk:s3','software.amazon.awssdk:dynamodb','io.grpc:grpc-stub','io.grpc:grpc-protobuf','io.grpc:grpc-netty-shaded','io.opentelemetry:opentelemetry-api','io.opentelemetry:opentelemetry-sdk','io.dropwizard.metrics:metrics-core'],
+  go: ['github.com/gin-gonic/gin','github.com/sirupsen/logrus','github.com/stretchr/testify','github.com/spf13/cobra','github.com/spf13/viper','github.com/spf13/pflag','github.com/spf13/cast','github.com/gorilla/mux','github.com/gorilla/websocket','github.com/labstack/echo','github.com/google/uuid','github.com/google/go-cmp','github.com/pkg/errors','github.com/go-redis/redis','github.com/redis/go-redis','github.com/go-sql-driver/mysql','github.com/lib/pq','github.com/jackc/pgx','github.com/jackc/pgconn','github.com/jmoiron/sqlx','google.golang.org/grpc','google.golang.org/protobuf','google.golang.org/api','gopkg.in/yaml.v2','gopkg.in/yaml.v3','github.com/aws/aws-sdk-go-v2','github.com/aws/aws-sdk-go','github.com/aws/aws-lambda-go','github.com/prometheus/client_golang','github.com/prometheus/common','github.com/golang-jwt/jwt','github.com/dgrijalva/jwt-go','k8s.io/client-go','k8s.io/api','k8s.io/apimachinery','k8s.io/apiextensions-apiserver','sigs.k8s.io/controller-runtime','sigs.k8s.io/yaml','github.com/hashicorp/terraform-plugin-sdk','github.com/hashicorp/go-multierror','github.com/hashicorp/go-version','github.com/hashicorp/go-cleanhttp','github.com/hashicorp/go-retryablehttp','github.com/hashicorp/golang-lru','github.com/hashicorp/hcl','go.uber.org/zap','go.uber.org/multierr','github.com/go-chi/chi','github.com/go-chi/cors','github.com/golang/protobuf','github.com/golang/glog','github.com/golang/groupcache','github.com/sashabaranov/go-openai','github.com/mattn/go-sqlite3','github.com/mattn/go-isatty','github.com/mattn/go-colorable','github.com/fatih/color','github.com/cenkalti/backoff','github.com/avast/retry-go','github.com/cli/safeexec','github.com/cli/oauth','github.com/google/go-github','github.com/sahilm/fuzzy','github.com/lithammer/fuzzysearch','github.com/charmbracelet/bubbletea','github.com/charmbracelet/lipgloss','github.com/charmbracelet/glamour','github.com/spf13/afero','github.com/fsnotify/fsnotify','github.com/joho/godotenv','github.com/caarlos0/env','github.com/kelseyhightower/envconfig','github.com/joeshaw/multierror','github.com/mitchellh/mapstructure','github.com/mitchellh/copystructure','github.com/mitchellh/go-homedir','github.com/mitchellh/cli','github.com/spf13/jwalterweatherman','github.com/magiconair/properties','github.com/subosito/gotenv','github.com/cpuguy83/go-md2man','github.com/russross/blackfriday','github.com/microcosm-cc/bluemonday','github.com/yuin/goldmark','github.com/PuerkitoBio/goquery','github.com/andybalholm/cascadia','golang.org/x/net','golang.org/x/sys','golang.org/x/crypto','golang.org/x/text','golang.org/x/oauth2','golang.org/x/sync','golang.org/x/term','golang.org/x/time','golang.org/x/tools'],
+  nuget: ['Newtonsoft.Json','Microsoft.Extensions.Logging','Microsoft.Extensions.Logging.Abstractions','Microsoft.Extensions.Logging.Console','Microsoft.Extensions.DependencyInjection','Microsoft.Extensions.DependencyInjection.Abstractions','Microsoft.Extensions.Configuration','Microsoft.Extensions.Configuration.Json','Microsoft.Extensions.Configuration.EnvironmentVariables','Microsoft.Extensions.Hosting','Microsoft.Extensions.Hosting.Abstractions','Microsoft.Extensions.Options','Microsoft.Extensions.Options.ConfigurationExtensions','Microsoft.Extensions.Http','Microsoft.Extensions.Http.Polly','Microsoft.Extensions.Caching.Memory','Microsoft.Extensions.Caching.Abstractions','Microsoft.Extensions.Caching.StackExchangeRedis','Microsoft.AspNetCore.App','Microsoft.AspNetCore.Mvc.NewtonsoftJson','Microsoft.AspNetCore.Authentication.JwtBearer','Microsoft.AspNetCore.Authentication.OpenIdConnect','Microsoft.AspNetCore.Authentication.Cookies','Microsoft.AspNetCore.Authorization','Microsoft.AspNetCore.SignalR','Microsoft.AspNetCore.SignalR.Client','Microsoft.EntityFrameworkCore','Microsoft.EntityFrameworkCore.SqlServer','Microsoft.EntityFrameworkCore.Sqlite','Microsoft.EntityFrameworkCore.InMemory','Microsoft.EntityFrameworkCore.Design','Microsoft.EntityFrameworkCore.Tools','Microsoft.EntityFrameworkCore.Relational','Pomelo.EntityFrameworkCore.MySql','Npgsql.EntityFrameworkCore.PostgreSQL','Serilog','Serilog.AspNetCore','Serilog.Extensions.Logging','Serilog.Sinks.Console','Serilog.Sinks.File','Serilog.Sinks.Seq','Serilog.Settings.Configuration','AutoMapper','AutoMapper.Extensions.Microsoft.DependencyInjection','xunit','xunit.runner.visualstudio','xunit.assert','NUnit','NUnit3TestAdapter','Moq','Moq.AutoMock','FluentAssertions','FluentAssertions.AspNetCore.Mvc','Polly','Polly.Extensions.Http','Dapper','Dapper.Contrib','MediatR','MediatR.Extensions.Microsoft.DependencyInjection','Swashbuckle.AspNetCore','Swashbuckle.AspNetCore.Annotations','Swashbuckle.AspNetCore.Newtonsoft','StackExchange.Redis','StackExchange.Redis.Extensions.Core','Azure.Identity','Azure.Storage.Blobs','Azure.Storage.Queues','Azure.Messaging.ServiceBus','Azure.KeyVault.Secrets','Azure.Security.KeyVault.Secrets','Microsoft.Identity.Web','IdentityServer4','IdentityServer4.AccessTokenValidation','Duende.IdentityServer','Microsoft.IdentityModel.Tokens','Microsoft.IdentityModel.Protocols.OpenIdConnect','System.IdentityModel.Tokens.Jwt','Microsoft.Data.SqlClient','System.Data.SqlClient','Npgsql','MySql.Data','MongoDB.Driver','RestSharp','Refit','Hangfire','Hangfire.Core','Hangfire.SqlServer','MassTransit','MassTransit.RabbitMQ','MassTransit.AspNetCore','FluentValidation','FluentValidation.AspNetCore','FluentValidation.DependencyInjectionExtensions','BCrypt.Net-Next','Bogus','MimeKit','MailKit','HtmlAgilityPack','CsvHelper','EPPlus','ClosedXML','iTextSharp','PdfSharpCore','SharpZipLib','SixLabors.ImageSharp','Microsoft.Bcl.AsyncInterfaces','Microsoft.Bcl.HashCode','System.Memory','System.Text.Json','System.Text.Encodings.Web','System.Buffers','System.Linq.Async','System.Reactive','Microsoft.Reactive.Testing','OpenTelemetry','OpenTelemetry.Extensions.Hosting','OpenTelemetry.Instrumentation.AspNetCore','OpenTelemetry.Instrumentation.Http','OpenTelemetry.Exporter.Prometheus.AspNetCore','prometheus-net','prometheus-net.AspNetCore']
+};
+
+// Download thresholds for typosquat suppression — only npm exposes weekly downloads cleanly
+const POPULAR_DOWNLOAD_THRESHOLD = { npm: 50000 };
+
+// OSV ecosystem name mapping
+const OSV_ECO = { npm: 'npm', pypi: 'PyPI', maven: 'Maven', go: 'Go', nuget: 'NuGet' };
+
+// Malware keyword patterns for detection beyond MAL-* prefix
+const MALWARE_TEXT_RE = /\b(embedded malware|malicious code|malicious package|malware|backdoor|crypto[\s-]?stealer|info[\s-]?stealer|wallet[\s-]?stealer|credential[\s-]?stealer|protestware|cryptocurrency miner|coin[\s-]?miner|reverse[\s-]?shell|data[\s-]?exfiltration|rat\b)/i;
+
+// ============================================================
+// OSV.dev — known vulnerabilities + confirmed-malicious packages
+// ============================================================
+async function osvLookup(ecosystem, name, version) {
+  const eco = OSV_ECO[ecosystem];
+  if (!eco) return [];
+  const body = { package: { name, ecosystem: eco } };
+  if (version) body.version = version;
+  try {
+    const r = await fetch('https://api.osv.dev/v1/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return data.vulns || [];
+  } catch (_) { return []; }
+}
+
+function isMaliciousAdvisory(v) {
+  if ((v.id || '').startsWith('MAL-')) return true;
+  if ((v.aliases || []).some(a => String(a).startsWith('MAL-'))) return true;
+  // GHSA & other DBs occasionally surface malware via database_specific
+  const dbSpec = JSON.stringify(v.database_specific || {}).toLowerCase();
+  if (dbSpec.includes('"malware"') || dbSpec.includes('"malicious"')) return true;
+  // Title/details keyword scan
+  const text = `${v.summary || ''} ${v.details || ''}`;
+  if (MALWARE_TEXT_RE.test(text)) return true;
+  return false;
+}
+
+function severityFromOsv(v) {
+  if (isMaliciousAdvisory(v)) return 'critical';
+  const sevStr = JSON.stringify(v.severity || []).toUpperCase();
+  if (/CRITICAL/.test(sevStr)) return 'critical';
+  if (/HIGH/.test(sevStr)) return 'high';
+  if (/LOW/.test(sevStr)) return 'low';
+  const dbSev = String((v.database_specific && v.database_specific.severity) || '').toUpperCase();
+  if (dbSev === 'CRITICAL') return 'critical';
+  if (dbSev === 'HIGH') return 'high';
+  if (dbSev === 'LOW') return 'low';
+  return 'medium';
+}
+
+function osvFindings(vulns, currentVersion, currentVersionIds) {
+  const ids = currentVersionIds || new Set();
+  return vulns.map(v => {
+    const malicious = isMaliciousAdvisory(v);
+    const severity = severityFromOsv(v);
+    // Trust OSV's by-version query — even malicious advisories can be version-scoped
+    // (e.g. colors.js protestware affected 1.4.44+ only, not earlier safe releases)
+    const affectsCurrent = ids.has(v.id);
+
+    const fixed = [];
+    for (const aff of v.affected || []) {
+      for (const range of aff.ranges || []) {
+        for (const ev of range.events || []) {
+          if (ev.fixed) fixed.push(ev.fixed);
+        }
+      }
+    }
+    const fixedUniq = [...new Set(fixed)];
+
+    let appliesBadge, appliesKind;
+    if (malicious) { appliesBadge = 'all versions'; appliesKind = 'malicious'; }
+    else if (affectsCurrent) { appliesBadge = `affects @${currentVersion || 'current'}`; appliesKind = 'current'; }
+    else if (fixedUniq.length) { appliesBadge = `fixed in ${fixedUniq[0]}${fixedUniq.length > 1 ? '+' : ''}`; appliesKind = 'fixed'; }
+    else { appliesBadge = 'older versions only'; appliesKind = 'historical'; }
+
+    const refs = (v.references || []).slice(0, 4).map(r => r.url).filter(Boolean);
+    const evidence = [
+      `ID: ${v.id}`,
+      v.aliases && v.aliases.length ? `Aliases: ${v.aliases.join(', ')}` : null,
+      v.modified ? `Modified: ${v.modified}` : null,
+      v.published ? `Published: ${v.published}` : null,
+      `Applies to current (@${currentVersion || '?'}): ${affectsCurrent ? 'YES' : 'no'}`,
+      fixedUniq.length ? `Fixed in: ${fixedUniq.join(', ')}` : 'No fix recorded',
+      refs.length ? `Refs:\n  ${refs.join('\n  ')}` : null,
+      `Advisory page: https://osv.dev/vulnerability/${v.id}`
+    ].filter(Boolean).join('\n');
+
+    return {
+      severity, id: `osv-${v.id}`,
+      title: malicious
+        ? `CONFIRMED MALICIOUS — ${v.id}: ${v.summary || 'reported as malicious package'}`
+        : `${v.id}: ${v.summary || 'security advisory'}`,
+      evidence,
+      why: v.details || v.summary || 'See advisory references for full description.',
+      mitigation: malicious
+        ? 'Do not install. If already installed: remove immediately, rotate any credentials accessible from the install environment (developer machine, CI runner), and audit logs / outbound traffic during the install window.'
+        : (affectsCurrent
+            ? (fixedUniq.length ? `Upgrade to ${fixedUniq.join(' or ')}.` : 'See advisory references; pin to a known-safe version or remove the dependency.')
+            : `This advisory does not affect the current version (@${currentVersion}). Shown for context — useful when reviewing upgrade paths or historical risk.`),
+      _osv: v, _malicious: malicious,
+      appliesBadge, appliesKind, appliesToCurrent: affectsCurrent
+    };
+  });
+}
+
+// ============================================================
+// universal analyzer
+// ============================================================
+function universalAnalyze(pkg) {
+  const findings = [];
+  const now = Date.now();
+
+  const ageDays = daysBetween(pkg.createdAt, now);
+  if (ageDays != null && ageDays < 30) {
+    findings.push({
+      severity: 'medium', id: 'u-young',
+      title: `Package is ${Math.round(ageDays)} days old`,
+      evidence: `First published ${fmtDate(pkg.createdAt)}`,
+      why: 'Very new packages are over-represented in supply chain attacks. Low download counts mean fewer eyes on the code, and attackers commonly publish freshly-named packages to pair with typosquats or dependency confusion.',
+      mitigation: 'Wait for the package to mature, or pin a specific version after manual review.'
+    });
+  } else if (ageDays != null && ageDays < 180) {
+    findings.push({
+      severity: 'low', id: 'u-fairly-young',
+      title: `Package is under six months old (${Math.round(ageDays)} days)`,
+      evidence: `First published ${fmtDate(pkg.createdAt)}`,
+      why: 'Younger packages have less community review. Not inherently bad, but worth acknowledging.',
+      mitigation: 'Sanity-check repo activity and downloads.'
+    });
+  }
+
+  const sinceLast = daysBetween(pkg.publishedAt, now);
+  if (sinceLast != null && sinceLast > 730) {
+    findings.push({
+      severity: 'low', id: 'u-stale',
+      title: `Latest version is ${(sinceLast / 365).toFixed(1)} years old`,
+      evidence: `Last published ${fmtDate(pkg.publishedAt)}`,
+      why: 'Long-stale packages are common takeover targets. If the maintainer account is later compromised or the package transferred, downstream consumers can be subverted via a "wake-up" release.',
+      mitigation: 'Confirm the package is intentionally stable, or vendor it.'
+    });
+  }
+
+  if (pkg.maintainers && pkg.maintainers.length === 1) {
+    findings.push({
+      severity: 'low', id: 'u-single-maintainer',
+      title: 'Single maintainer (bus-factor / key-compromise risk)',
+      evidence: `Maintainer: ${pkg.maintainers[0]}`,
+      why: 'A single maintainer means a single account compromise compromises every downstream. Fine for hobby deps, riskier for transitive critical paths.',
+      mitigation: 'For critical paths, prefer packages with multiple maintainers and registry-enforced 2FA.'
+    });
+  }
+
+  if (!pkg.repositoryUrl) {
+    findings.push({
+      severity: 'medium', id: 'u-no-repo',
+      title: 'No source repository link declared',
+      evidence: 'Package metadata does not declare a repository URL.',
+      why: 'Without a linked source repo there is no way to compare published artifact contents to source. Many malicious packages omit the repo link, or point at an unrelated repo to look legitimate.',
+      mitigation: 'Avoid, or pin and audit the published artifact contents directly.'
+    });
+  }
+
+  // Typosquat check — suppress for popular packages (high downloads OR in the top-N list)
+  const list = TOP_PACKAGES[pkg.ecosystem] || [];
+  const lower = pkg.name.toLowerCase();
+  const inTopList = list.some(t => t.toLowerCase() === lower);
+  const downloadThreshold = POPULAR_DOWNLOAD_THRESHOLD[pkg.ecosystem];
+  const isPopularByDownloads = downloadThreshold != null && pkg.downloads != null && pkg.downloads >= downloadThreshold;
+  const skipTyposquat = inTopList || isPopularByDownloads;
+
+  if (!skipTyposquat) {
+    let bestMatch = null;
+    for (const top of list) {
+      const d = levenshtein(lower, top.toLowerCase());
+      if (d > 0 && d <= 2 && (!bestMatch || d < bestMatch.d)) bestMatch = { top, d };
+    }
+    if (bestMatch) {
+      findings.push({
+        severity: 'high', id: 'u-typosquat',
+        title: `Name is ${bestMatch.d} edit(s) from popular package "${bestMatch.top}"`,
+        evidence: `Levenshtein distance ${bestMatch.d} between "${pkg.name}" and "${bestMatch.top}"`,
+        why: 'Typosquats sit one or two characters off the legitimate name and rely on user typos or autocomplete mistakes. This is the single most common npm/PyPI attack pattern.',
+        mitigation: `Verify you intended "${pkg.name}" and not "${bestMatch.top}".`
+      });
+    }
+  }
+
+  if (/[^\x00-\x7F]/.test(pkg.name)) {
+    findings.push({
+      severity: 'high', id: 'u-homoglyph',
+      title: 'Package name contains non-ASCII characters',
+      evidence: `Name: ${pkg.name}`,
+      why: 'Unicode confusables (Cyrillic "а" vs Latin "a", etc.) are a homoglyph typosquat technique.',
+      mitigation: 'Confirm the exact bytes match the package you intended.'
+    });
+  }
+
+  return findings;
+}
+
+// ============================================================
+// registry adapters
+// ============================================================
+const REGISTRIES = {
+  npm: {
+    label: 'npm', placeholder: 'lodash', docs: 'JavaScript / Node.js',
+    async fetchPkg(name) {
+      const r = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`);
+      if (r.status === 404) throw new Error(`Package "${name}" not found on npm`);
+      if (!r.ok) throw new Error(`npm registry returned ${r.status}`);
+      const data = await r.json();
+      const latest = data['dist-tags'] && data['dist-tags'].latest;
+      if (!latest) throw new Error('No latest dist-tag');
+      const v = data.versions[latest];
+      const times = data.time || {};
+      let weekly = null;
+      try {
+        const dr = await fetch(`https://api.npmjs.org/downloads/point/last-week/${encodeURIComponent(name)}`);
+        if (dr.ok) weekly = (await dr.json()).downloads;
+      } catch (_) {}
+      return {
+        ecosystem: 'npm', name: data.name, version: latest,
+        description: data.description || v.description,
+        repositoryUrl: normalizeRepoUrl((data.repository && data.repository.url) || (v.repository && v.repository.url)),
+        homepage: data.homepage, license: v.license || data.license,
+        maintainers: (data.maintainers || []).map(m => m.name),
+        versionCount: Object.keys(data.versions || {}).length,
+        createdAt: times.created, publishedAt: times[latest],
+        deprecated: !!v.deprecated,
+        deprecatedMessage: typeof v.deprecated === 'string' ? v.deprecated : null,
+        downloadsLabel: 'weekly downloads', downloads: weekly,
+        registryUrl: `https://www.npmjs.com/package/${encodeURIComponent(name)}`,
+        _raw: { manifest: data, latest: v }
+      };
+    },
+    analyze(pkg) {
+      const findings = [];
+      const v = pkg._raw.latest;
+      const scripts = v.scripts || {};
+      const lifecycle = ['preinstall', 'install', 'postinstall'];
+      const present = lifecycle.filter(s => scripts[s]);
+      if (present.length) {
+        findings.push({
+          severity: 'high', id: 'npm-install-scripts',
+          title: `Install lifecycle scripts present (${present.join(', ')})`,
+          evidence: present.map(s => `"${s}": ${JSON.stringify(scripts[s])}`).join('\n'),
+          why: 'Code in install scripts runs automatically during `npm install`. The vast majority of malicious npm packages exploit this hook to execute code on developer or CI machines.',
+          mitigation: 'Audit each script. Run with `--ignore-scripts`, sandbox builds, or pin to a manually-reviewed version.'
+        });
+      }
+      const hasAttestations = !!(v.dist && v.dist.attestations);
+      findings.push(hasAttestations ? {
+        severity: 'info', id: 'npm-provenance',
+        title: 'Sigstore provenance attestation present',
+        evidence: 'dist.attestations populated.',
+        why: 'The artifact was built and signed by a verifiable CI workflow. Silent tampering is substantially harder.',
+        mitigation: 'No action needed.'
+      } : {
+        severity: 'low', id: 'npm-no-provenance',
+        title: 'No sigstore provenance attestation',
+        evidence: 'No `dist.attestations` field on this version.',
+        why: 'Provenance binds a published artifact to its source repo + CI run. Absence is not malicious — many legitimate packages have not adopted it yet — but verified provenance is a strong positive signal.',
+        mitigation: 'Where possible, prefer dependencies that publish with `npm publish --provenance`.'
+      });
+      const bins = v.bin ? (typeof v.bin === 'string' ? [pkg.name] : Object.keys(v.bin)) : [];
+      const dangerous = ['ls','cd','rm','mv','cp','curl','wget','sh','bash','npm','node','git','sudo','python','python3','pip','make'];
+      const collisions = bins.filter(b => dangerous.includes(b));
+      if (collisions.length) {
+        findings.push({
+          severity: 'high', id: 'npm-bin-collision',
+          title: `Bin entries collide with system binaries: ${collisions.join(', ')}`,
+          evidence: JSON.stringify(v.bin),
+          why: 'A package that installs a binary named after a system tool can shadow the real one in PATH after global install, leading to command hijacking.',
+          mitigation: 'Avoid global install. If needed, scope the binary differently or run only in isolated environments.'
+        });
+      }
+      if (pkg.deprecated) {
+        findings.push({
+          severity: 'medium', id: 'npm-deprecated',
+          title: 'Package version is deprecated',
+          evidence: pkg.deprecatedMessage || 'deprecated flag set',
+          why: 'Maintainers have signalled this version should not be used.',
+          mitigation: 'Migrate to the recommended replacement.'
+        });
+      }
+      return findings;
+    }
+  },
+
+  pypi: {
+    label: 'PyPI', placeholder: 'requests', docs: 'Python',
+    async fetchPkg(name) {
+      const r = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
+      if (r.status === 404) throw new Error(`Package "${name}" not found on PyPI`);
+      if (!r.ok) throw new Error(`PyPI returned ${r.status}`);
+      const data = await r.json();
+      const info = data.info;
+      let firstUpload = null, lastUpload = null;
+      for (const ver in data.releases) {
+        for (const file of data.releases[ver]) {
+          const t = file.upload_time_iso_8601 || file.upload_time;
+          if (!t) continue;
+          if (!firstUpload || t < firstUpload) firstUpload = t;
+          if (!lastUpload || t > lastUpload) lastUpload = t;
+        }
+      }
+      const projUrls = info.project_urls || {};
+      let repo = null;
+      const pref = ['Repository','Source','Source Code','Code','GitHub','Homepage'];
+      for (const k of pref) {
+        for (const ku in projUrls) {
+          if (ku.toLowerCase() === k.toLowerCase() && /(github|gitlab|bitbucket|codeberg)\.com|sr\.ht/.test(projUrls[ku])) {
+            repo = projUrls[ku]; break;
+          }
+        }
+        if (repo) break;
+      }
+      if (!repo) {
+        for (const ku in projUrls) {
+          if (/(github|gitlab|bitbucket|codeberg)\.com|sr\.ht/.test(projUrls[ku])) { repo = projUrls[ku]; break; }
+        }
+      }
+      if (!repo) repo = info.home_page;
+      const maintainers = [info.author, info.maintainer].filter(Boolean);
+      return {
+        ecosystem: 'pypi', name: info.name, version: info.version,
+        description: info.summary,
+        repositoryUrl: normalizeRepoUrl(repo),
+        homepage: info.home_page, license: info.license,
+        maintainers,
+        versionCount: Object.keys(data.releases || {}).length,
+        createdAt: firstUpload, publishedAt: lastUpload,
+        deprecated: false, deprecatedMessage: null,
+        downloadsLabel: 'downloads', downloads: null,
+        registryUrl: `https://pypi.org/project/${encodeURIComponent(name)}/`,
+        _raw: data
+      };
+    },
+    analyze(pkg) {
+      const findings = [];
+      const data = pkg._raw;
+      const urls = data.urls || [];
+      const hasWheel = urls.some(u => u.packagetype === 'bdist_wheel');
+      const hasSdist = urls.some(u => u.packagetype === 'sdist');
+      if (hasSdist && !hasWheel) {
+        findings.push({
+          severity: 'medium', id: 'pypi-sdist-only',
+          title: 'Only source distribution available (no wheel)',
+          evidence: `urls: ${urls.map(u => u.packagetype).join(', ') || 'none'}`,
+          why: 'Without a wheel, pip builds from source on install. If the sdist contains setup.py or build hooks, they execute on the target machine — a common malicious code execution path.',
+          mitigation: 'Build wheels in a sandbox first; use `--only-binary` or pin to a known-good wheel.'
+        });
+      }
+      const hasAttestations = urls.some(u => u.provenance || u.attestations);
+      findings.push(hasAttestations ? {
+        severity: 'info', id: 'pypi-attestations',
+        title: 'PEP 740 attestations present',
+        evidence: 'At least one distribution file has provenance/attestation metadata.',
+        why: 'PyPI trusted publishing produces verifiable attestations binding the artifact to a CI workflow.',
+        mitigation: 'No action needed.'
+      } : {
+        severity: 'low', id: 'pypi-no-attestations',
+        title: 'No PEP 740 attestations',
+        evidence: 'No `provenance` or `attestations` on distribution files.',
+        why: 'Trusted publishing + attestations bind artifacts to a verifiable CI workflow. Absence is not malicious — adoption is recent — but presence is a strong positive signal.',
+        mitigation: 'Prefer dependencies published via PyPI trusted publishing.'
+      });
+      const yanked = urls.find(u => u.yanked);
+      if (yanked) {
+        findings.push({
+          severity: 'high', id: 'pypi-yanked',
+          title: 'Current version is yanked',
+          evidence: yanked.yanked_reason || 'yanked',
+          why: 'Yanked releases are kept available for reproducibility but should not be selected for new installs.',
+          mitigation: 'Pin to a non-yanked version.'
+        });
+      }
+      const classifiers = (data.info && data.info.classifiers) || [];
+      const dev = classifiers.find(c => /Development Status/.test(c));
+      if (dev && /(1 - Planning|2 - Pre-Alpha|3 - Alpha)/.test(dev)) {
+        findings.push({
+          severity: 'low', id: 'pypi-dev-status',
+          title: `Self-declared development status: ${dev.split('::').pop().trim()}`,
+          evidence: dev,
+          why: 'Maintainers signal this is early-stage code; expect breaking changes and less hardening.',
+          mitigation: 'Treat as experimental.'
+        });
+      }
+      return findings;
+    }
+  },
+
+  maven: {
+    label: 'Maven', placeholder: 'com.google.guava:guava', docs: 'Java / JVM (groupId:artifactId)',
+    async fetchPkg(name) {
+      if (!name.includes(':')) throw new Error('Maven coordinates are groupId:artifactId (e.g. com.google.guava:guava)');
+      const [g, a] = name.split(':');
+      const r = await fetch(`https://api.deps.dev/v3/systems/MAVEN/packages/${encodeURIComponent(name)}`);
+      if (r.status === 404) throw new Error(`Artifact "${name}" not found on Maven Central`);
+      if (!r.ok) throw new Error(`deps.dev returned ${r.status}`);
+      const data = await r.json();
+      const versions = data.versions || [];
+      if (!versions.length) throw new Error('No versions found');
+      let defaultV = versions.find(v => v.isDefault);
+      if (!defaultV) defaultV = versions[versions.length - 1];
+      const versionKey = defaultV.versionKey.version;
+      let vDetail = null;
+      try {
+        const vr = await fetch(`https://api.deps.dev/v3/systems/MAVEN/packages/${encodeURIComponent(name)}/versions/${encodeURIComponent(versionKey)}`);
+        if (vr.ok) vDetail = await vr.json();
+      } catch (_) {}
+      let firstPublished = null, lastPublished = (vDetail && vDetail.publishedAt) || defaultV.publishedAt;
+      for (const v of versions) {
+        if (v.publishedAt && (!firstPublished || v.publishedAt < firstPublished)) firstPublished = v.publishedAt;
+      }
+      let repo = null;
+      if (vDetail && vDetail.links) {
+        for (const l of vDetail.links) {
+          if ((l.label && /SOURCE/i.test(l.label)) || /github|gitlab|bitbucket|codeberg/.test(l.url || '')) {
+            repo = l.url; break;
+          }
+        }
+      }
+      return {
+        ecosystem: 'maven', name: `${g}:${a}`, version: versionKey,
+        description: vDetail && vDetail.description || null,
+        repositoryUrl: normalizeRepoUrl(repo), homepage: null,
+        license: vDetail && vDetail.licenses ? vDetail.licenses.join(', ') : null,
+        maintainers: [], versionCount: versions.length,
+        createdAt: firstPublished, publishedAt: lastPublished,
+        deprecated: false, deprecatedMessage: null,
+        downloadsLabel: 'downloads', downloads: null,
+        registryUrl: `https://central.sonatype.com/artifact/${g}/${a}`,
+        _raw: { listing: data, versionDetail: vDetail, group: g, artifact: a }
+      };
+    },
+    analyze(pkg) {
+      const findings = [];
+      const g = pkg._raw.group;
+      const segs = g.split('.');
+      if (segs.length < 2) {
+        findings.push({
+          severity: 'medium', id: 'maven-shallow-namespace',
+          title: `Group ID "${g}" is unusually shallow`,
+          evidence: `groupId: ${g}`,
+          why: 'Maven Central conventionally uses reverse-DNS group IDs (e.g. com.example, io.foo). Single-segment group IDs are uncommon for legitimate libraries and bypass implicit ownership signaling.',
+          mitigation: 'Verify the publisher controls the relevant DNS / org before adopting.'
+        });
+      }
+      if (g.startsWith('com.github.') && pkg.repositoryUrl) {
+        const expectedUser = g.split('.')[2];
+        if (expectedUser && !new RegExp(`github\\.com/${expectedUser}\\b`, 'i').test(pkg.repositoryUrl)) {
+          findings.push({
+            severity: 'medium', id: 'maven-namespace-mismatch',
+            title: `Group ID claims github user "${expectedUser}" but repo URL points elsewhere`,
+            evidence: `groupId: ${g}\nrepo: ${pkg.repositoryUrl}`,
+            why: 'A com.github.<user>.* group ID is meant to map to that github.com user. Mismatch can indicate impersonation or a transferred package.',
+            mitigation: 'Verify group ID ownership matches the linked repo before adopting.'
+          });
+        }
+      }
+      return findings;
+    }
+  },
+
+  go: {
+    label: 'Go', placeholder: 'github.com/gin-gonic/gin', docs: 'Go modules (full module path)',
+    async fetchPkg(name) {
+      const r = await fetch(`https://api.deps.dev/v3/systems/GO/packages/${encodeURIComponent(name)}`);
+      if (r.status === 404) throw new Error(`Module "${name}" not found`);
+      if (!r.ok) throw new Error(`deps.dev returned ${r.status}`);
+      const data = await r.json();
+      const versions = data.versions || [];
+      if (!versions.length) throw new Error('No versions found');
+      let defaultV = versions.find(v => v.isDefault);
+      if (!defaultV) defaultV = versions[versions.length - 1];
+      const versionKey = defaultV.versionKey.version;
+      let vDetail = null;
+      try {
+        const vr = await fetch(`https://api.deps.dev/v3/systems/GO/packages/${encodeURIComponent(name)}/versions/${encodeURIComponent(versionKey)}`);
+        if (vr.ok) vDetail = await vr.json();
+      } catch (_) {}
+      let firstPublished = null, lastPublished = (vDetail && vDetail.publishedAt) || defaultV.publishedAt;
+      for (const v of versions) {
+        if (v.publishedAt && (!firstPublished || v.publishedAt < firstPublished)) firstPublished = v.publishedAt;
+      }
+      let repo = null;
+      if (vDetail && vDetail.links) {
+        for (const l of vDetail.links) {
+          if ((l.label && /SOURCE/i.test(l.label)) || /github|gitlab|bitbucket|codeberg/.test(l.url || '')) {
+            repo = l.url; break;
+          }
+        }
+      }
+      if (!repo && /^(github\.com|gitlab\.com|bitbucket\.org|codeberg\.org)/.test(name)) {
+        const m = name.match(/^([^\/]+)\/([^\/]+)\/([^\/]+)/);
+        if (m) repo = `https://${m[1]}/${m[2]}/${m[3]}`;
+      }
+      return {
+        ecosystem: 'go', name, version: versionKey,
+        description: vDetail && vDetail.description || null,
+        repositoryUrl: normalizeRepoUrl(repo), homepage: null,
+        license: vDetail && vDetail.licenses ? vDetail.licenses.join(', ') : null,
+        maintainers: [], versionCount: versions.length,
+        createdAt: firstPublished, publishedAt: lastPublished,
+        deprecated: false, deprecatedMessage: null,
+        downloadsLabel: 'downloads', downloads: null,
+        registryUrl: `https://pkg.go.dev/${name}`,
+        _raw: { listing: data, versionDetail: vDetail }
+      };
+    },
+    analyze(pkg) {
+      const findings = [];
+      const path = pkg.name;
+      const knownHosts = ['github.com','gitlab.com','bitbucket.org','codeberg.org','sr.ht','launchpad.net','golang.org','google.golang.org','gopkg.in','k8s.io','sigs.k8s.io','go.uber.org','cloud.google.com','go.opentelemetry.io','go.mongodb.org','go.etcd.io'];
+      const firstSeg = path.split('/')[0];
+      if (!knownHosts.includes(firstSeg)) {
+        findings.push({
+          severity: firstSeg.includes('.') ? 'low' : 'medium', id: 'go-unknown-host',
+          title: `Module path host "${firstSeg}" is not in the well-known set`,
+          evidence: `path: ${path}`,
+          why: 'Go module paths embed their source host. Vanity domains are valid but require a meta redirect that you should be able to verify; an unknown host could indicate a takeover or unverifiable origin.',
+          mitigation: 'Confirm the host is legitimate and serves a `go-import` redirect that points where you expect.'
+        });
+      }
+      findings.push({
+        severity: 'info', id: 'go-sumdb',
+        title: 'Protected by Go checksum database',
+        evidence: 'All versions resolved via proxy.golang.org are recorded in sum.golang.org.',
+        why: 'Go\'s public transparency log records the hash of every module version ever fetched. Tampering after publication is detectable by mismatched sums.',
+        mitigation: 'No action needed. Ensure GOSUMDB is not disabled in your environment.'
+      });
+      return findings;
+    }
+  },
+
+  nuget: {
+    label: 'NuGet', placeholder: 'Newtonsoft.Json', docs: '.NET',
+    async fetchPkg(name) {
+      const lower = name.toLowerCase();
+      const r = await fetch(`https://api.nuget.org/v3/registration5-semver1/${encodeURIComponent(lower)}/index.json`);
+      if (r.status === 404) throw new Error(`Package "${name}" not found on NuGet`);
+      if (!r.ok) throw new Error(`NuGet returned ${r.status}`);
+      const data = await r.json();
+      const pages = data.items || [];
+      const entries = [];
+      for (const page of pages) {
+        let pageItems = page.items;
+        if (!pageItems && page['@id']) {
+          try {
+            const pr = await fetch(page['@id']);
+            if (pr.ok) {
+              const pd = await pr.json();
+              pageItems = pd.items;
+            }
+          } catch (_) {}
+        }
+        for (const it of pageItems || []) {
+          if (it.catalogEntry) entries.push(it.catalogEntry);
+        }
+      }
+      if (!entries.length) throw new Error('Could not resolve catalog entries');
+      entries.sort((a, b) => (a.published || '').localeCompare(b.published || ''));
+      const isReal = e => e.published && !e.published.startsWith('1900');
+      const real = entries.filter(isReal);
+      // Prefer stable releases (no -alpha/-beta/-rc/-preview/-pre) when picking "latest"
+      const isStable = e => !/-(alpha|beta|rc|preview|pre|dev)/i.test(e.version || '');
+      const stable = real.filter(isStable);
+      const latest = stable.length ? stable[stable.length - 1] : (real.length ? real[real.length - 1] : entries[entries.length - 1]);
+      const first = real.length ? real[0] : entries[0];
+      const repoUrl = (latest.repository && latest.repository.url) || latest.projectUrl;
+      return {
+        ecosystem: 'nuget', name: latest.id || name, version: latest.version,
+        description: latest.description,
+        repositoryUrl: normalizeRepoUrl(repoUrl),
+        homepage: latest.projectUrl,
+        license: latest.licenseExpression || latest.licenseUrl || null,
+        maintainers: latest.authors ? String(latest.authors).split(',').map(s => s.trim()).filter(Boolean) : [],
+        versionCount: entries.length,
+        createdAt: first.published, publishedAt: latest.published,
+        deprecated: !!latest.deprecation,
+        deprecatedMessage: latest.deprecation && latest.deprecation.message,
+        downloadsLabel: 'downloads', downloads: null,
+        registryUrl: `https://www.nuget.org/packages/${encodeURIComponent(name)}`,
+        _raw: { latest, first, entries }
+      };
+    },
+    analyze(pkg) {
+      const findings = [];
+      const latest = pkg._raw.latest;
+      if (latest.listed === false) {
+        findings.push({
+          severity: 'high', id: 'nuget-unlisted',
+          title: 'Latest version is unlisted',
+          evidence: 'listed: false',
+          why: 'Unlisted packages are hidden from NuGet search. Authors unlist versions for security/quality reasons; new installs should generally avoid them.',
+          mitigation: 'Pin to a listed version, or investigate why this one was unlisted.'
+        });
+      }
+      if (pkg.deprecated) {
+        findings.push({
+          severity: 'high', id: 'nuget-deprecated',
+          title: 'Package version is deprecated',
+          evidence: pkg.deprecatedMessage || 'deprecation set',
+          why: 'NuGet deprecations indicate the maintainer no longer recommends the version. Reasons include critical bugs, alternative packages, or end-of-life.',
+          mitigation: 'Use the suggested replacement or supported version.'
+        });
+      }
+      if (latest.vulnerabilities && latest.vulnerabilities.length) {
+        findings.push({
+          severity: 'high', id: 'nuget-vuln',
+          title: `${latest.vulnerabilities.length} vulnerability advisor${latest.vulnerabilities.length === 1 ? 'y' : 'ies'} in NuGet catalog`,
+          evidence: latest.vulnerabilities.map(v => `${v.advisoryUrl || ''} (severity ${v.severity})`).join('\n'),
+          why: 'NuGet records vulnerability advisories directly in catalog metadata.',
+          mitigation: 'Upgrade to a patched version. OSV findings below may overlap.'
+        });
+      }
+      return findings;
+    }
+  }
+};
+
+// ============================================================
+// scoring
+// ============================================================
+function gradePackage(findings) {
+  const c = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+  for (const f of findings) {
+    if (f.appliesToCurrent === false) continue;
+    c[f.severity] = (c[f.severity] || 0) + 1;
+  }
+  if (c.critical) return 'F';
+  if (c.high >= 2) return 'D';
+  if (c.high >= 1) return 'C';
+  if (c.medium >= 2) return 'C';
+  if (c.medium >= 1) return 'B';
+  return 'A';
+}
+
+function severityRank(s) {
+  return { critical: 0, high: 1, medium: 2, low: 3, info: 4 }[s] ?? 5;
+}
+
+function gradeRank(g) {
+  return { F: 0, D: 1, C: 2, B: 3, A: 4 }[g] ?? 5;
+}
+
+// ============================================================
+// lockfile parsing
+// ============================================================
+function parseLockfile(text) {
+  text = text.trim();
+  if (!text) return null;
+
+  // JSON: package.json or package-lock.json
+  if (text.startsWith('{')) {
+    try {
+      const j = JSON.parse(text);
+      if (j.packages && typeof j.packages === 'object' && Object.keys(j.packages).some(k => k.startsWith('node_modules/') || k === '')) {
+        const deps = [];
+        const seen = new Set();
+        for (const path of Object.keys(j.packages)) {
+          if (!path) continue;
+          const m = path.match(/^node_modules\/(.+)$/);
+          if (!m) continue;
+          if (m[1].includes('/node_modules/')) continue;
+          if (seen.has(m[1])) continue;
+          seen.add(m[1]);
+          deps.push({ ecosystem: 'npm', name: m[1], version: (j.packages[path] || {}).version || null });
+        }
+        if (deps.length) return { format: 'package-lock.json', deps };
+      }
+      if (j.dependencies || j.devDependencies) {
+        const deps = [];
+        for (const k of Object.keys(j.dependencies || {})) {
+          deps.push({ ecosystem: 'npm', name: k, version: stripSemverPrefix(j.dependencies[k]) });
+        }
+        for (const k of Object.keys(j.devDependencies || {})) {
+          deps.push({ ecosystem: 'npm', name: k, version: stripSemverPrefix(j.devDependencies[k]) });
+        }
+        if (deps.length) return { format: 'package.json', deps };
+      }
+    } catch (_) {}
+  }
+
+  // Maven pom.xml
+  if (/<dependency>/i.test(text)) {
+    const deps = [];
+    const re = /<dependency>\s*<groupId>([^<]+)<\/groupId>\s*<artifactId>([^<]+)<\/artifactId>(?:\s*<version>([^<]+)<\/version>)?/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const v = m[3] ? m[3].trim() : null;
+      // Skip property-references like ${spring.version}
+      const ver = (v && /^\${.+}$/.test(v)) ? null : v;
+      deps.push({ ecosystem: 'maven', name: `${m[1].trim()}:${m[2].trim()}`, version: ver });
+    }
+    if (deps.length) return { format: 'pom.xml', deps };
+  }
+
+  // .csproj (NuGet)
+  if (/<PackageReference\b/i.test(text)) {
+    const deps = [];
+    const re = /<PackageReference\s+Include=["']([^"']+)["'](?:\s+Version=["']([^"']+)["'])?/gi;
+    let m;
+    while ((m = re.exec(text))) {
+      deps.push({ ecosystem: 'nuget', name: m[1], version: m[2] || null });
+    }
+    if (deps.length) return { format: '.csproj', deps };
+  }
+
+  // go.mod
+  if (/^\s*module\s+[\w./-]+/m.test(text) || /^\s*require\s*\(/m.test(text) || /^\s*require\s+[\w./-]+/m.test(text)) {
+    const deps = [];
+    const seen = new Set();
+    // require ( ... ) block(s)
+    const blocks = [...text.matchAll(/require\s*\(([\s\S]*?)\)/g)];
+    for (const b of blocks) {
+      const reBlock = /^\s*([\w.\-\/]+)\s+(\S+)/gm;
+      let m;
+      while ((m = reBlock.exec(b[1]))) {
+        if (seen.has(m[1])) continue;
+        seen.add(m[1]);
+        deps.push({ ecosystem: 'go', name: m[1], version: m[2] });
+      }
+    }
+    // single requires
+    const reSingle = /^\s*require\s+([\w.\-\/]+)\s+(\S+)/gm;
+    let m;
+    while ((m = reSingle.exec(text))) {
+      if (seen.has(m[1])) continue;
+      seen.add(m[1]);
+      deps.push({ ecosystem: 'go', name: m[1], version: m[2] });
+    }
+    if (deps.length) return { format: 'go.mod', deps };
+  }
+
+  // requirements.txt (PyPI) — line-based, last resort
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#') && !l.startsWith('-') && !l.startsWith('/'));
+  const deps = [];
+  for (const line of lines) {
+    const cleaned = line.split(/[;\s]/)[0]; // drop env markers
+    const m = cleaned.match(/^([A-Za-z0-9._\-]+)/);
+    if (!m) continue;
+    const versionMatch = cleaned.match(/==\s*([\w.\-]+)/);
+    deps.push({ ecosystem: 'pypi', name: m[1], version: versionMatch ? versionMatch[1] : null });
+  }
+  if (deps.length >= 2 || (deps.length === 1 && /==/.test(text))) return { format: 'requirements.txt', deps };
+  return null;
+}
+
+function stripSemverPrefix(v) {
+  if (!v) return null;
+  const m = String(v).match(/[\d][\w.\-+]*/);
+  return m ? m[0] : null;
+}
+
+// ============================================================
+// scan one package (used in single + lockfile mode)
+// ============================================================
+async function analyzeOne(ecosystem, name) {
+  const reg = REGISTRIES[ecosystem];
+  if (!reg) throw new Error(`Unknown ecosystem: ${ecosystem}`);
+  const osvByNameP = osvLookup(ecosystem, name, null).catch(() => []);
+  let pkg;
+  try {
+    pkg = await reg.fetchPkg(name);
+  } catch (regErr) {
+    const osvVulns = await osvByNameP;
+    if (osvVulns.length && osvVulns.some(isMaliciousAdvisory)) {
+      return { removed: true, name, ecosystem, vulns: osvVulns };
+    }
+    throw regErr;
+  }
+  const [osvByName, osvByVersion] = await Promise.all([
+    osvByNameP,
+    osvLookup(ecosystem, pkg.name, pkg.version).catch(() => [])
+  ]);
+  const currentVersionIds = new Set(osvByVersion.map(v => v.id));
+  const seen = new Set(); const merged = [];
+  for (const v of osvByVersion) { if (!seen.has(v.id)) { seen.add(v.id); merged.push(v); } }
+  for (const v of osvByName) { if (!seen.has(v.id)) { seen.add(v.id); merged.push(v); } }
+  const findings = [
+    ...osvFindings(merged, pkg.version, currentVersionIds),
+    ...universalAnalyze(pkg),
+    ...reg.analyze(pkg)
+  ];
+  return { pkg, findings };
+}
+
+// ============================================================
+// recent searches (localStorage)
+// ============================================================
+const RECENT_KEY = 'supplycheck:recent:v1';
+function loadRecent() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (_) { return []; }
+}
+function saveRecent(eco, name, grade) {
+  const list = loadRecent().filter(r => !(r.eco === eco && r.name === name));
+  list.unshift({ eco, name, grade, ts: Date.now() });
+  localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 8)));
+  renderRecent();
+}
+function clearRecent() {
+  localStorage.removeItem(RECENT_KEY);
+  renderRecent();
+}
+function renderRecent() {
+  const row = document.getElementById('recent-row');
+  const list = loadRecent();
+  if (!list.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+  row.style.display = 'flex';
+  let html = `<span class="recent-label">Recent:</span>`;
+  for (const r of list) {
+    const grade = r.grade || '?';
+    html += `<button class="recent-chip" data-eco="${escapeHtml(r.eco)}" data-name="${escapeHtml(r.name)}"><span class="recent-grade grade-${grade}">${grade}</span>${escapeHtml(r.eco)} / ${escapeHtml(r.name)}</button>`;
+  }
+  html += `<span class="recent-clear" id="recent-clear">clear</span>`;
+  row.innerHTML = html;
+  for (const btn of row.querySelectorAll('.recent-chip')) {
+    btn.addEventListener('click', () => {
+      const eco = btn.dataset.eco;
+      const name = btn.dataset.name;
+      setActiveEco(eco);
+      document.getElementById('name-input').value = name;
+      runSingle();
+    });
+  }
+  const clr = document.getElementById('recent-clear');
+  if (clr) clr.addEventListener('click', clearRecent);
+}
+
+// ============================================================
+// markdown export
+// ============================================================
+function findingsToMarkdown(pkg, findings) {
+  const grade = gradePackage(findings);
+  const reg = REGISTRIES[pkg.ecosystem];
+  const lines = [];
+  lines.push(`## supplycheck: \`${pkg.name}\` @ ${pkg.version} — Grade ${grade}`);
+  lines.push('');
+  lines.push(`- **Ecosystem:** ${reg.label}`);
+  lines.push(`- **Repository:** ${pkg.repositoryUrl || 'none declared'}`);
+  lines.push(`- **Registry:** ${pkg.registryUrl}`);
+  lines.push(`- **First published:** ${fmtDate(pkg.createdAt)}`);
+  lines.push(`- **Last published:** ${fmtDate(pkg.publishedAt)}`);
+  if (pkg.maintainers && pkg.maintainers.length) lines.push(`- **Maintainers:** ${pkg.maintainers.length}`);
+  if (pkg.downloads != null) lines.push(`- **${pkg.downloadsLabel || 'Downloads'}:** ${fmtNum(pkg.downloads)}`);
+  lines.push('');
+  const current = findings.filter(f => f.appliesToCurrent !== false);
+  const historical = findings.filter(f => f.appliesToCurrent === false);
+  current.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
+  historical.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
+  if (current.length) {
+    lines.push(`### Findings affecting @${pkg.version} (${current.length})`);
+    lines.push('');
+    for (const f of current) {
+      lines.push(`- **[${f.severity.toUpperCase()}]** ${f.title}${f.appliesBadge ? ` _(${f.appliesBadge})_` : ''}`);
+      if (f.why) lines.push(`  - _Why:_ ${f.why}`);
+      if (f.mitigation) lines.push(`  - _Mitigation:_ ${f.mitigation}`);
+    }
+    lines.push('');
+  }
+  if (historical.length) {
+    lines.push(`### Historical advisories (${historical.length}) — fixed or older versions only`);
+    lines.push('');
+    for (const f of historical) {
+      lines.push(`- [${f.severity.toUpperCase()}] ${f.title}${f.appliesBadge ? ` _(${f.appliesBadge})_` : ''}`);
+    }
+    lines.push('');
+  }
+  lines.push(`---`);
+  lines.push(`Generated by [supplycheck](https://github.com/hijacksecurity/supplycheck) — a free utility from Hijack Security.`);
+  return lines.join('\n');
+}
+
+// ============================================================
+// ecosystem auto-detect from input string
+// ============================================================
+function detectEcosystem(input) {
+  const s = input.trim();
+  if (!s) return null;
+  // Maven: groupId:artifactId
+  if (/^[a-z][\w.-]*\.[a-z][\w.-]*\s*:\s*[\w.-]+$/i.test(s) && s.split('.').length >= 2) return 'maven';
+  // Go: starts with a recognizable host
+  if (/^(github|gitlab|bitbucket|codeberg)\.com\//.test(s)) return 'go';
+  if (/^(golang|google\.golang|gopkg|k8s|sigs\.k8s|go\.uber|cloud\.google|go\.opentelemetry|go\.mongodb|go\.etcd)\b/.test(s)) return 'go';
+  // NuGet: PascalCase.Dotted
+  if (/^[A-Z][\w.]*\.[A-Z]/.test(s) && !s.includes('/')) return 'nuget';
+  return null;
+}
+
+// ============================================================
+// rendering
+// ============================================================
+const ecoRow = document.getElementById('eco-row');
+const nameInput = document.getElementById('name-input');
+const analyzeBtn = document.getElementById('analyze-btn');
+const hint = document.getElementById('hint');
+const statusEl = document.getElementById('status');
+const resultsEl = document.getElementById('results');
+const lockfileArea = document.getElementById('lockfile-area');
+const lockfileDetect = document.getElementById('lockfile-detect');
+const scanBtn = document.getElementById('scan-btn');
+
+let activeEco = 'npm';
+let activeMode = 'single';
+let lastResult = null; // { pkg, findings } or { scan: [...] }
+
+function setActiveEco(eco) {
+  if (!REGISTRIES[eco]) return;
+  activeEco = eco;
+  renderEcoRow();
+  updateHint();
+}
+
+function setActiveMode(mode) {
+  activeMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  document.getElementById('single-controls').style.display = mode === 'single' ? '' : 'none';
+  document.getElementById('lockfile-controls').style.display = mode === 'lockfile' ? '' : 'none';
+  if (mode === 'single') nameInput.focus(); else lockfileArea.focus();
+}
+
+function renderEcoRow() {
+  ecoRow.innerHTML = '';
+  for (const key of Object.keys(REGISTRIES)) {
+    const reg = REGISTRIES[key];
+    const btn = document.createElement('button');
+    btn.className = 'eco-btn' + (key === activeEco ? ' active' : '');
+    btn.textContent = reg.label;
+    btn.onclick = () => { setActiveEco(key); nameInput.focus(); };
+    ecoRow.appendChild(btn);
+  }
+}
+
+function updateHint() {
+  const reg = REGISTRIES[activeEco];
+  hint.innerHTML = `${escapeHtml(reg.docs)} — example: <code>${escapeHtml(reg.placeholder)}</code> · <kbd>Enter</kbd> to analyze`;
+  nameInput.placeholder = reg.placeholder;
+}
+
+function renderFinding(f, historical) {
+  let h = '';
+  h += `<div class="finding sev-${f.severity}${historical ? ' historical' : ''}" data-id="${escapeHtml(f.id)}">`;
+  h += `  <div class="finding-head">`;
+  h += `    <span class="sev-chip sev-${f.severity}">${f.severity}</span>`;
+  h += `    <span class="finding-title">${escapeHtml(f.title)}</span>`;
+  if (f.appliesBadge) {
+    h += `    <span class="applies-badge applies-${f.appliesKind}">${escapeHtml(f.appliesBadge)}</span>`;
+  }
+  h += `    <span class="finding-toggle">[+]</span>`;
+  h += `  </div>`;
+  h += `  <div class="finding-body">`;
+  if (f.evidence) h += `<div class="label">evidence</div><pre>${linkify(escapeHtml(f.evidence))}</pre>`;
+  if (f.why) h += `<div class="label">why it matters</div><div>${linkify(escapeHtml(f.why))}</div>`;
+  if (f.mitigation) h += `<div class="label">mitigation</div><div>${linkify(escapeHtml(f.mitigation))}</div>`;
+  h += `  </div></div>`;
+  return h;
+}
+
+function renderResults(pkg, findings, opts = {}) {
+  const grade = gradePackage(findings);
+  const current = findings.filter(f => f.appliesToCurrent !== false);
+  const historical = findings.filter(f => f.appliesToCurrent === false);
+  // Banner only when a malicious advisory actually applies to the resolved version,
+  // OR when the package was removed from the registry (handled in renderRemovedMalicious).
+  const hasMalicious = current.some(f => f._malicious);
+  current.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
+  historical.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
+
+  let html = '';
+  html += `<div class="pkg-header${hasMalicious ? ' malicious' : ''}">`;
+  html += `  <div class="row1">`;
+  html += `    <span class="name">${escapeHtml(pkg.name)}</span>`;
+  html += `    <span class="version">@ ${escapeHtml(pkg.version || '—')}</span>`;
+  html += `    <span class="grade grade-${grade}">${grade}</span>`;
+  html += `  </div>`;
+  if (pkg.description) html += `<div class="desc">${escapeHtml(pkg.description)}</div>`;
+  if (hasMalicious) {
+    html += `<div class="malicious-banner">⚠ This package matches one or more confirmed-malicious advisories. DO NOT INSTALL.</div>`;
+  }
+  html += `<div class="pkg-stats">`;
+  html += stat('ecosystem', REGISTRIES[pkg.ecosystem].label);
+  html += stat('first published', fmtDate(pkg.createdAt));
+  html += stat('last published', fmtDate(pkg.publishedAt));
+  html += stat('age', fmtAge(daysBetween(pkg.createdAt)));
+  html += stat('versions', pkg.versionCount != null ? String(pkg.versionCount) : '—');
+  html += stat('maintainers', pkg.maintainers && pkg.maintainers.length ? String(pkg.maintainers.length) : '—');
+  html += stat(pkg.downloadsLabel || 'downloads', pkg.downloads != null ? fmtNum(pkg.downloads) : '—');
+  html += stat('license', pkg.license || '—');
+  html += stat('repository', pkg.repositoryUrl ? `<a href="${escapeHtml(pkg.repositoryUrl)}" target="_blank" rel="noopener">link</a>` : '—');
+  html += stat('registry', `<a href="${escapeHtml(pkg.registryUrl)}" target="_blank" rel="noopener">page</a>`);
+  html += `</div>`;
+  if (!opts.embedded) {
+    html += `<div class="pkg-actions">`;
+    html += `  <button class="action-btn" id="copy-md-btn">Copy as Markdown</button>`;
+    html += `  <button class="action-btn" id="copy-share-btn">Copy share link</button>`;
+    html += `  <button class="action-btn" id="copy-json-btn">Copy JSON</button>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  if (!findings.length) {
+    html += `<div class="empty"><p>No findings flagged.</p><p>This is not a verdict — heuristics only check what's visible in registry metadata + OSV.</p></div>`;
+  } else {
+    if (current.length) {
+      html += `<div class="findings-section"><h2>Findings affecting @${escapeHtml(pkg.version || 'current')} (${current.length})</h2>`;
+      for (const f of current) html += renderFinding(f, false);
+      html += `</div>`;
+    } else {
+      html += `<div class="findings-section"><h2>Findings affecting @${escapeHtml(pkg.version || 'current')} (0)</h2>`;
+      html += `<div class="empty"><p>No findings flagged for the current version.</p></div></div>`;
+    }
+    if (historical.length) {
+      html += `<div class="findings-section historical"><h2>Historical advisories (${historical.length}) — fixed or older versions only</h2>`;
+      for (const f of historical) html += renderFinding(f, true);
+      html += `</div>`;
+    }
+  }
+
+  if (opts.embedded) return html;
+
+  resultsEl.innerHTML = html;
+  attachFindingHandlers(resultsEl);
+
+  // Action buttons
+  const copyMd = document.getElementById('copy-md-btn');
+  if (copyMd) copyMd.addEventListener('click', async () => {
+    const ok = await copyToClipboard(findingsToMarkdown(pkg, findings));
+    flashCopied(copyMd, ok);
+  });
+  const copyShare = document.getElementById('copy-share-btn');
+  if (copyShare) copyShare.addEventListener('click', async () => {
+    const ok = await copyToClipboard(window.location.href);
+    flashCopied(copyShare, ok);
+  });
+  const copyJson = document.getElementById('copy-json-btn');
+  if (copyJson) copyJson.addEventListener('click', async () => {
+    const ok = await copyToClipboard(JSON.stringify({ pkg: { ...pkg, _raw: undefined }, findings: findings.map(f => ({ ...f, _osv: undefined })) }, null, 2));
+    flashCopied(copyJson, ok);
+  });
+
+  return null;
+}
+
+function flashCopied(btn, ok) {
+  const orig = btn.textContent;
+  btn.textContent = ok ? '✓ Copied' : '✗ Failed';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+}
+
+function attachFindingHandlers(scope) {
+  for (const fEl of scope.querySelectorAll('.finding')) {
+    const head = fEl.querySelector('.finding-head');
+    if (!head || head.dataset.bound) continue;
+    head.dataset.bound = '1';
+    head.addEventListener('click', () => {
+      fEl.classList.toggle('open');
+      const t = head.querySelector('.finding-toggle');
+      if (t) t.textContent = fEl.classList.contains('open') ? '[-]' : '[+]';
+    });
+  }
+}
+
+function stat(label, value) {
+  return `<div class="stat"><div class="label">${escapeHtml(label)}</div><div class="value">${value}</div></div>`;
+}
+
+function renderRemovedMalicious(name, ecosystem, vulns) {
+  const fakePkg = {
+    ecosystem, name, version: '(removed from registry)',
+    description: 'Package not found on registry, but matches confirmed-malicious advisories. This usually means the package was taken down after malware reports.',
+    repositoryUrl: null, license: null, maintainers: [],
+    versionCount: null, createdAt: null, publishedAt: null,
+    deprecated: false, downloadsLabel: 'downloads', downloads: null,
+    registryUrl: '#'
+  };
+  const allIds = new Set(vulns.map(v => v.id));
+  const findings = osvFindings(vulns, '(removed)', allIds);
+  findings.unshift({
+    severity: 'critical', id: 'registry-removed',
+    title: 'Package not in registry — matches malicious-package advisories',
+    evidence: `Registry lookup returned 404. OSV records ${vulns.length} advisor${vulns.length === 1 ? 'y' : 'ies'} for this name.`,
+    why: 'Registries remove packages after confirmed-malicious reports, but OSV preserves the advisory record. A 404 with malicious history strongly suggests a removed-malware package.',
+    mitigation: 'Do not attempt to install. If you previously installed it, treat as a confirmed compromise and follow IR procedures.',
+    _malicious: true, appliesToCurrent: true, appliesBadge: 'package removed', appliesKind: 'malicious'
+  });
+  renderResults(fakePkg, findings);
+}
+
+// ============================================================
+// scan-table rendering for lockfile mode
+// ============================================================
+function renderScanResults(scanItems, parsed) {
+  const total = scanItems.length;
+  const ok = scanItems.filter(i => i.result && i.result.pkg);
+  const errors = scanItems.filter(i => i.error);
+  const removed = scanItems.filter(i => i.result && i.result.removed);
+
+  // summary stats
+  const counts = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+  let malicious = 0, critical = 0, high = 0, medium = 0;
+  for (const it of ok) {
+    const grade = gradePackage(it.result.findings);
+    counts[grade]++;
+    if (it.result.findings.some(f => f._malicious)) malicious++;
+    for (const f of it.result.findings) {
+      if (f.appliesToCurrent === false) continue;
+      if (f.severity === 'critical') critical++;
+      else if (f.severity === 'high') high++;
+      else if (f.severity === 'medium') medium++;
+    }
+  }
+  malicious += removed.length;
+
+  let html = '';
+  html += `<div class="scan-summary">`;
+  html += stat('format', parsed.format);
+  html += stat('total', String(total));
+  html += stat('grade A', String(counts.A));
+  html += stat('grade B/C', String(counts.B + counts.C));
+  html += stat('grade D/F', `<span style="color:var(--high)">${counts.D + counts.F}</span>`);
+  html += stat('malicious', `<span style="color:var(--critical)">${malicious}</span>`);
+  html += stat('critical', `<span style="color:var(--critical)">${critical}</span>`);
+  html += stat('high', `<span style="color:var(--high)">${high}</span>`);
+  html += stat('errors', String(errors.length));
+  html += `</div>`;
+
+  // sorted: F → A
+  scanItems.sort((a, b) => {
+    const ga = a.result && a.result.pkg ? gradePackage(a.result.findings) : (a.result && a.result.removed ? 'F' : 'C');
+    const gb = b.result && b.result.pkg ? gradePackage(b.result.findings) : (b.result && b.result.removed ? 'F' : 'C');
+    return gradeRank(ga) - gradeRank(gb);
+  });
+
+  html += `<table class="scan-table"><thead><tr><th>Package</th><th>Eco</th><th>Version</th><th>Grade</th><th>Issues</th><th></th></tr></thead><tbody>`;
+  for (const it of scanItems) {
+    if (it.error) {
+      html += `<tr class="scan-row" data-key="${escapeHtml(it.key)}"><td class="pkg-cell">${escapeHtml(it.dep.name)}</td><td class="eco-cell">${escapeHtml(it.dep.ecosystem)}</td><td class="ver-cell">${escapeHtml(it.dep.version || '?')}</td><td>—</td><td class="scan-error">${escapeHtml(it.error)}</td><td></td></tr>`;
+      continue;
+    }
+    if (it.result.removed) {
+      const malCount = (it.result.vulns || []).filter(isMaliciousAdvisory).length;
+      html += `<tr class="scan-row" data-key="${escapeHtml(it.key)}"><td class="pkg-cell">${escapeHtml(it.dep.name)}</td><td class="eco-cell">${escapeHtml(it.dep.ecosystem)}</td><td class="ver-cell">(removed)</td><td><span class="grade-pill grade-F">F</span></td><td class="scan-error">malicious — ${malCount} advisor${malCount === 1 ? 'y' : 'ies'}</td><td class="row-action">[expand]</td></tr>`;
+      continue;
+    }
+    const { pkg, findings } = it.result;
+    const grade = gradePackage(findings);
+    const cur = findings.filter(f => f.appliesToCurrent !== false);
+    const sevCounts = cur.reduce((acc, f) => (acc[f.severity] = (acc[f.severity] || 0) + 1, acc), {});
+    const issuesParts = [];
+    if (sevCounts.critical) issuesParts.push(`<span style="color:var(--critical)">${sevCounts.critical} critical</span>`);
+    if (sevCounts.high) issuesParts.push(`<span style="color:var(--high)">${sevCounts.high} high</span>`);
+    if (sevCounts.medium) issuesParts.push(`<span style="color:var(--medium)">${sevCounts.medium} medium</span>`);
+    if (sevCounts.low) issuesParts.push(`<span style="color:var(--low)">${sevCounts.low} low</span>`);
+    const issuesText = issuesParts.length ? issuesParts.join(', ') : '<span style="color:var(--fg-faint)">none</span>';
+    html += `<tr class="scan-row" data-key="${escapeHtml(it.key)}"><td class="pkg-cell">${escapeHtml(pkg.name)}</td><td class="eco-cell">${escapeHtml(pkg.ecosystem)}</td><td class="ver-cell">${escapeHtml(pkg.version)}</td><td><span class="grade-pill grade-${grade}">${grade}</span></td><td class="issues-cell">${issuesText}</td><td class="row-action">[expand]</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  resultsEl.innerHTML = html;
+
+  // expand handlers
+  for (const tr of resultsEl.querySelectorAll('.scan-row')) {
+    tr.addEventListener('click', () => {
+      const key = tr.dataset.key;
+      const it = scanItems.find(x => x.key === key);
+      if (!it) return;
+      const next = tr.nextElementSibling;
+      if (next && next.classList.contains('scan-detail-row')) {
+        next.remove();
+        tr.classList.remove('expanded');
+        return;
+      }
+      tr.classList.add('expanded');
+      const detail = document.createElement('tr');
+      detail.className = 'scan-detail-row';
+      let inner;
+      if (it.error) {
+        inner = `<div class="scan-detail-inner"><strong>Error:</strong> ${escapeHtml(it.error)}</div>`;
+      } else if (it.result.removed) {
+        const fakePkg = { ecosystem: it.dep.ecosystem, name: it.dep.name, version: '(removed)', description: null, repositoryUrl: null, license: null, maintainers: [], versionCount: null, createdAt: null, publishedAt: null, registryUrl: '#', downloadsLabel: 'downloads', downloads: null };
+        const allIds = new Set(it.result.vulns.map(v => v.id));
+        const findings = osvFindings(it.result.vulns, '(removed)', allIds);
+        inner = `<div class="scan-detail-inner">${renderResults(fakePkg, findings, { embedded: true })}</div>`;
+      } else {
+        inner = `<div class="scan-detail-inner">${renderResults(it.result.pkg, it.result.findings, { embedded: true })}</div>`;
+      }
+      detail.innerHTML = `<td colspan="6">${inner}</td>`;
+      tr.parentNode.insertBefore(detail, tr.nextSibling);
+      attachFindingHandlers(detail);
+    });
+  }
+}
+
+// ============================================================
+// orchestration
+// ============================================================
+async function runSingle() {
+  const name = nameInput.value.trim();
+  if (!name) return;
+  statusEl.innerHTML = `<div class="status">Fetching ${REGISTRIES[activeEco].label} → ${escapeHtml(name)}…</div>`;
+  resultsEl.innerHTML = '';
+  analyzeBtn.disabled = true;
+  try {
+    const result = await analyzeOne(activeEco, name);
+    statusEl.innerHTML = '';
+    if (result.removed) {
+      renderRemovedMalicious(name, activeEco, result.vulns);
+      saveRecent(activeEco, name, 'F');
+    } else {
+      renderResults(result.pkg, result.findings);
+      const grade = gradePackage(result.findings);
+      saveRecent(activeEco, result.pkg.name, grade);
+      lastResult = result;
+    }
+    writeHashState({ mode: 'single', eco: activeEco, pkg: name });
+  } catch (e) {
+    statusEl.innerHTML = `<div class="status error">Error: ${escapeHtml(e.message || String(e))}</div>`;
+  } finally {
+    analyzeBtn.disabled = false;
+  }
+}
+
+async function runScan(parsed) {
+  const total = parsed.deps.length;
+  resultsEl.innerHTML = '';
+  scanBtn.disabled = true;
+  let done = 0;
+  const updateProgress = () => {
+    const pct = Math.round((done / total) * 100);
+    statusEl.innerHTML = `<div class="status">Scanning ${done} / ${total} dependencies… <span class="progress-bar"><span class="progress-fill" style="width:${pct}%"></span></span></div>`;
+  };
+  updateProgress();
+
+  const items = parsed.deps.map((dep, i) => ({ key: `${dep.ecosystem}:${dep.name}:${i}`, dep }));
+  const CONCURRENCY = 5;
+  let idx = 0;
+  async function worker() {
+    while (idx < items.length) {
+      const i = idx++;
+      const it = items[i];
+      try {
+        it.result = await analyzeOne(it.dep.ecosystem, it.dep.name);
+      } catch (e) {
+        it.error = e.message || String(e);
+      }
+      done++;
+      updateProgress();
+    }
+  }
+  const workers = Array(Math.min(CONCURRENCY, items.length)).fill(0).map(worker);
+  await Promise.all(workers);
+  statusEl.innerHTML = '';
+  renderScanResults(items, parsed);
+  scanBtn.disabled = false;
+  writeHashState({ mode: 'lockfile' });
+}
+
+// ============================================================
+// URL hash state
+// ============================================================
+function readHashState() {
+  const h = window.location.hash.slice(1);
+  if (!h) return null;
+  const params = new URLSearchParams(h);
+  return { mode: params.get('mode'), eco: params.get('eco'), pkg: params.get('pkg') };
+}
+function writeHashState(state) {
+  const params = new URLSearchParams();
+  if (state.mode && state.mode !== 'single') params.set('mode', state.mode);
+  if (state.eco) params.set('eco', state.eco);
+  if (state.pkg) params.set('pkg', state.pkg);
+  const h = params.toString();
+  history.replaceState(null, '', h ? `#${h}` : window.location.pathname);
+}
+
+// ============================================================
+// wire up
+// ============================================================
+document.querySelectorAll('.mode-tab').forEach(t => {
+  t.addEventListener('click', () => setActiveMode(t.dataset.mode));
+});
+
+analyzeBtn.addEventListener('click', runSingle);
+nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') runSingle(); });
+
+// Live ecosystem auto-detect hint
+nameInput.addEventListener('input', () => {
+  const detected = detectEcosystem(nameInput.value);
+  if (detected && detected !== activeEco) {
+    hint.innerHTML = `Looks like a <strong>${REGISTRIES[detected].label}</strong> package — <a href="#" id="switch-eco">switch ecosystem?</a>`;
+    const sw = document.getElementById('switch-eco');
+    if (sw) sw.addEventListener('click', e => { e.preventDefault(); setActiveEco(detected); });
+  } else {
+    updateHint();
+  }
+});
+
+lockfileArea.addEventListener('input', () => {
+  const parsed = parseLockfile(lockfileArea.value);
+  if (parsed) {
+    lockfileDetect.innerHTML = `Detected: <strong>${escapeHtml(parsed.format)}</strong> — ${parsed.deps.length} dependencies will be scanned`;
+    scanBtn.disabled = parsed.deps.length === 0;
+    scanBtn.dataset.parsed = '1';
+  } else {
+    lockfileDetect.textContent = 'No format detected yet — paste a manifest above.';
+    scanBtn.disabled = true;
+  }
+});
+
+scanBtn.addEventListener('click', () => {
+  const parsed = parseLockfile(lockfileArea.value);
+  if (!parsed) return;
+  runScan(parsed);
+});
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    setActiveMode('single');
+    nameInput.focus();
+    nameInput.select();
+  }
+});
+
+renderEcoRow();
+updateHint();
+renderRecent();
+
+function applyHashState() {
+  const hashState = readHashState();
+  if (!hashState) { nameInput.focus(); return; }
+  if (hashState.mode === 'lockfile') {
+    setActiveMode('lockfile');
+    return;
+  }
+  if (hashState.eco && hashState.pkg) {
+    setActiveMode('single');
+    setActiveEco(hashState.eco);
+    if (nameInput.value !== hashState.pkg) {
+      nameInput.value = hashState.pkg;
+      runSingle();
+    }
+  }
+}
+
+window.addEventListener('hashchange', applyHashState);
+applyHashState();
+</script>
+</body>
+</html>
