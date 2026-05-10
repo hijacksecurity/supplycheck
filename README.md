@@ -1,7 +1,7 @@
 # supplycheck
 
 > Cross-ecosystem package supply chain risk scorer.
-> A free utility from [Hijack Security](https://www.hijacksecurity.com).
+> A small supply chain utility by [Hijack Security](https://www.hijacksecurity.com).
 
 Look up any package on **npm**, **PyPI**, **Maven Central**, **Go**, or **NuGet** and get a one-page risk report combining live registry metadata with [OSV.dev](https://osv.dev) advisories — including confirmed-malicious packages from the [OpenSSF Malicious Packages dataset](https://github.com/ossf/malicious-packages).
 

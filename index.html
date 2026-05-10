@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>supplycheck — package supply chain risk scorer</title>
-  <meta name="description" content="Cross-ecosystem package supply chain risk scorer. A free utility from Hijack Security." />
+  <meta name="description" content="Cross-ecosystem package supply chain risk scorer by Hijack Security." />
   <meta property="og:title" content="supplycheck — package supply chain risk scorer" />
-  <meta property="og:description" content="Free utility for triaging supply chain risk on any npm, PyPI, Maven, Go, or NuGet package. Built by Hijack Security." />
+  <meta property="og:description" content="Triage supply chain risk on any npm, PyPI, Maven, Go, or NuGet package. By Hijack Security." />
   <meta property="og:type" content="website" />
   <meta name="theme-color" content="#07090a" />
   <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'&gt;&lt;rect width='32' height='32' fill='%23070a0a'/&gt;&lt;text y='23' x='3' font-family='monospace' font-size='18' font-weight='bold' fill='%235af78e'&gt;sc&lt;/text&gt;&lt;/svg&gt;" />
@@ -36,13 +36,16 @@
 
     .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
 
-    header.title { display: flex; align-items: baseline; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 24px; flex-wrap: wrap; }
+    header.title { display: flex; align-items: center; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 24px; flex-wrap: wrap; }
     header.title h1 { margin: 0; font-size: 22px; color: var(--neon); letter-spacing: 0.5px; }
     header.title h1 a { color: inherit; text-decoration: none; }
     header.title h1 a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+    header.title .brand { margin-left: auto; display: inline-flex; align-items: center; gap: 9px; color: var(--fg-faint); text-decoration: none; }
+    header.title .brand:hover { color: var(--fg-dim); }
+    header.title .brand-logo { width: 40px; height: auto; display: block; image-rendering: auto; filter: drop-shadow(0 0 6px rgba(90, 247, 142, 0.15)); }
     header.title .tag { color: var(--fg-dim); font-size: 12px; }
     header.title .tag::before { content: "// "; color: var(--fg-faint); }
-    header.title .brand { margin-left: auto; color: var(--fg-faint); font-size: 11px; letter-spacing: 0.5px; }
+    header.title .brand-text { font-size: 11px; letter-spacing: 0.5px; }
 
     .mode-tabs { display: flex; gap: 0; margin-bottom: -1px; position: relative; z-index: 2; }
     .mode-tab { background: transparent; border: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--fg-dim); padding: 8px 16px; cursor: pointer; font-family: var(--mono); font-size: 13px; }
@@ -66,8 +69,13 @@
     .eco-suggest { color: var(--medium); font-size: 12px; margin-left: auto; cursor: pointer; }
     .eco-suggest:hover { text-decoration: underline; }
     .input-row { display: flex; gap: 8px; }
-    .name-input { flex: 1; background: var(--bg); border: 1px solid var(--border-strong); color: var(--fg); padding: 10px 12px; font-family: var(--mono); font-size: 14px; }
-    .name-input:focus { outline: none; border-color: var(--neon); }
+    .name-input { flex: 1; background: var(--bg); border: 1px solid color-mix(in srgb, var(--active-eco-color, var(--border-strong)) 55%, transparent); color: var(--fg); padding: 10px 12px; font-family: var(--mono); font-size: 14px; transition: border-color .15s, box-shadow .15s; }
+    .name-input:focus { outline: none; border-color: var(--active-eco-color, var(--neon)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--active-eco-color, var(--neon)) 18%, transparent); }
+    body[data-active-eco="npm"]   { --active-eco-color: #cb3837; }
+    body[data-active-eco="pypi"]  { --active-eco-color: #5db14e; }
+    body[data-active-eco="maven"] { --active-eco-color: #ec7c1a; }
+    body[data-active-eco="go"]    { --active-eco-color: #00add8; }
+    body[data-active-eco="nuget"] { --active-eco-color: #2683c6; }
     .lockfile-area { width: 100%; min-height: 140px; background: var(--bg); border: 1px solid var(--border-strong); color: var(--fg); padding: 10px 12px; font-family: var(--mono); font-size: 13px; resize: vertical; }
     .lockfile-area:focus { outline: none; border-color: var(--neon); }
     .lockfile-detect { color: var(--fg-faint); font-size: 12px; margin-top: 6px; }
@@ -184,7 +192,10 @@
   <header class="title">
     <h1><a href="/" aria-label="supplycheck — home">supplycheck</a></h1>
     <span class="tag">cross-ecosystem package supply chain risk scorer</span>
-    <span class="brand">a free utility from Hijack Security</span>
+    <a class="brand" href="https://www.hijacksecurity.com" target="_blank" rel="noopener" aria-label="Hijack Security">
+      <img src="assets/hijack-logo.gif" alt="" class="brand-logo" width="72" height="48" />
+      <span class="brand-text">by Hijack Security</span>
+    </a>
   </header>
 
   <div class="mode-tabs" id="mode-tabs">
@@ -1462,7 +1473,7 @@ function findingsToMarkdown(pkg, findings) {
     lines.push('');
   }
   lines.push(`---`);
-  lines.push(`Generated by [supplycheck](https://github.com/hijacksecurity/supplycheck) — a free utility from Hijack Security.`);
+  lines.push(`Generated by [supplycheck](https://github.com/hijacksecurity/supplycheck) — a Hijack Security utility.`);
   return lines.join('\n');
 }
 
@@ -1502,6 +1513,7 @@ let lastResult = null; // { pkg, findings } or { scan: [...] }
 function setActiveEco(eco) {
   if (!REGISTRIES[eco]) return;
   activeEco = eco;
+  document.body.dataset.activeEco = eco;
   renderEcoRow();
   updateHint();
 }
@@ -1928,6 +1940,7 @@ document.addEventListener('keydown', e => {
   }
 });
 
+document.body.dataset.activeEco = activeEco;
 renderEcoRow();
 updateHint();
 renderRecent();
