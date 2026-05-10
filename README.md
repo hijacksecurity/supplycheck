@@ -101,11 +101,11 @@ Per-ecosystem adapters share a normalized package shape (`fetchPkg(name) → Nor
 ## Run locally
 
 ```sh
-python3 -m http.server 3000
-# then open http://localhost:3000
+./scripts/dev-up.sh    # → http://127.0.0.1:3004
+./scripts/dev-down.sh  # stop
 ```
 
-Or any other static file server. Nothing to install.
+The scripts wrap `python3 -m http.server` with PID tracking and an idempotent up. Or roll your own with any static file server — nothing to install.
 
 ## Deployment
 
